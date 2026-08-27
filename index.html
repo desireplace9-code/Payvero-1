@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Payvero — Simple Crypto Payments</title>
+    <meta name="description" content="Non-custodial cryptocurrency payment gateway and merchant checkout platform." />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160' fill='none'%3E%3Cpath d='M52 46C52 30.5 65.5 18 82 18C104 18 122 36 122 58C122 75.5 110.5 90.5 94 96L78 102C63 102 52 91 52 76Z' stroke='%2320E56B' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M38 98L38 132' stroke='%2320E56B' stroke-width='18' stroke-linecap='round'/%3E%3Cpath d='M54 68L72 86L126 32' stroke='%2320E56B' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        if (typeof window === 'undefined') return;
+        var roots = [window, typeof globalThis !== 'undefined' ? globalThis : null, typeof Window !== 'undefined' && Window.prototype ? Window.prototype : null].filter(Boolean);
+        var props = ['fetch', 'Headers', 'Request', 'Response', 'DOMException'];
+        for (var i = 0; i < roots.length; i++) {
+          var curr = roots[i];
+          var depth = 0;
+          while (curr && depth < 10) {
+            depth++;
+            for (var j = 0; j < props.length; j++) {
+              var prop = props[j];
+              try {
+                var desc = Object.getOwnPropertyDescriptor(curr, prop);
+                if (desc && desc.get && !desc.set) {
+                  (function(t, p, d) {
+                    Object.defineProperty(t, p, {
+                      get: d.get,
+                      set: function(val) {
+                        Object.defineProperty(this, p, { value: val, writable: true, configurable: true, enumerable: true });
+                      },
+                      configurable: true,
+                      enumerable: d.enumerable !== false
+                    });
+                  })(curr, prop, desc);
+                }
+              } catch(e) {}
+            }
+            curr = Object.getPrototypeOf(curr);
+          }
+        }
+      })();
+    </script>
+    <meta property="og:title" content="Payvero — Simple Crypto Payments" />
+    <meta property="og:description" content="Accept cryptocurrency directly to your sovereign wallet with simple checkout and zero intermediary fees." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body class="bg-[#0B1026] text-white antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

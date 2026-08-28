@@ -8,7 +8,6 @@ import { useMerchantWallet } from '../hooks/useMerchantWallet';
 import { AddressDisplay } from '../components/AddressDisplay';
 import { CopyButton } from '../components/CopyButton';
 import { TokenLogo } from '../components/TokenLogo';
-import { WalletConnectModal } from '../components/WalletConnectModal';
 import { 
   Building2, 
   Wallet, 
@@ -35,21 +34,14 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
   const {
     isConnected: isMerchantWalletConnected,
     address: merchantConnectedAddress,
-    chainId: merchantConnectedChainId,
     networkName: merchantConnectedNetworkName,
-    connectorType: merchantConnectorType,
     isConnecting: isMerchantConnecting,
     error: merchantWalletError,
-    connect: connectMerchantWallet,
-    abortConnection: abortMerchantConnection,
     disconnect: disconnectMerchantWallet,
-    switchChain: switchMerchantChain,
     clearError: clearMerchantWalletError,
-    isProviderAvailable: isMerchantProviderAvailable,
-    isWalletConnectConfigured: isMerchantWalletConnectConfigured,
+    openModal: openMerchantModal,
   } = useMerchantWallet();
 
-  const [isMerchantModalOpen, setIsMerchantModalOpen] = useState(false);
   const [name, setName] = useState(merchant.name);
   const [walletAddress, setWalletAddress] = useState(merchant.walletAddress);
   const [tronWalletAddress, setTronWalletAddress] = useState(merchant.tronWalletAddress || '');
@@ -163,16 +155,16 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
   const handleReset = () => {
     resetToDefault();
     setName('Acme Digital Commerce');
-    setWalletAddress('0x71C8360e3268cbE02e429352e8964344Fa5aB162');
-    setTronWalletAddress('TLyqzZyCleanAddressExample9823485743');
-    setBitcoinWalletAddress('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    setWalletAddress('');
+    setTronWalletAddress('');
+    setBitcoinWalletAddress('');
     setSupportedTokens(['POL', 'USDT', 'VERSE']);
     setDefaultToken('POL');
     setEmail('finance@acmedigital.io');
     setWebhookUrl('https://api.acmedigital.io/webhooks/payvero');
     setBusinessCategory('Digital Goods & Software');
     setRequireRef(false);
-    setFeedback({ type: 'success', message: 'Restored default demonstration parameters.' });
+    setFeedback({ type: 'success', message: 'Restored default settings (wallet cleared).' });
   };
 
   return (
@@ -319,7 +311,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
                 <button
                   id="btn-merchant-connect-receiving-wallet"
                   type="button"
-                  onClick={() => setIsMerchantModalOpen(true)}
+                  onClick={openMerchantModal}
                   disabled={isMerchantConnecting}
                   className="px-4 py-2 text-xs font-bold bg-[#4D7CFE] hover:bg-[#3b6be6] text-white rounded-xl transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
                 >
@@ -584,26 +576,6 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
           </button>
         </div>
       </form>
-
-      {/* Merchant Receiving Wallet Connect Modal */}
-      <WalletConnectModal
-        isOpen={isMerchantModalOpen}
-        onClose={() => setIsMerchantModalOpen(false)}
-        isConnected={isMerchantWalletConnected}
-        address={merchantConnectedAddress}
-        chainId={merchantConnectedChainId}
-        networkName={merchantConnectedNetworkName}
-        connectorType={merchantConnectorType}
-        isConnecting={isMerchantConnecting}
-        error={merchantWalletError}
-        isProviderAvailable={isMerchantProviderAvailable}
-        isWalletConnectConfigured={isMerchantWalletConnectConfigured}
-        onConnect={connectMerchantWallet}
-        onDisconnect={disconnectMerchantWallet}
-        onSwitchChain={switchMerchantChain}
-        onClearError={clearMerchantWalletError}
-        onAbort={abortMerchantConnection}
-      />
     </div>
   );
 }

@@ -111,10 +111,10 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
   walletConnectInitPromise = (async () => {
     const { EthereumProvider } = await import('@walletconnect/ethereum-provider');
     
-    // Official redirect URL: use the clean current page URL so mobile wallets return seamlessly upon approval
+    // Official redirect URL: use the current browser web URL so mobile wallets return seamlessly upon approval
     const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://payvero.io';
     const appUrl = typeof window !== 'undefined'
-      ? (window.location.origin + window.location.pathname).replace(/\/$/, '')
+      ? window.location.href
       : 'https://payvero.io';
 
     // Primary chain is Polygon PoS (137), with Ethereum (1) and BNB Smart Chain (56) in proposal configuration
@@ -158,7 +158,6 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
         url: appOrigin,
         icons: [`${appOrigin}/icon.png`],
         redirect: {
-          native: 'payvero://',
           universal: appUrl,
         },
       },

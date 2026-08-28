@@ -88,13 +88,19 @@ export function WalletConnectModal({
 
   // Reset pairing state when modal is closed or when wallet is successfully connected
   useEffect(() => {
-    if (!isOpen || isConnected) {
+    if (!isOpen) {
       setSelectedMobileWallet(null);
       setPairingUri(null);
       setShowQrFallback(false);
       setCopiedUri(false);
+    } else if (isConnected) {
+      // Auto-close modal after brief visual confirmation when connected
+      const timer = setTimeout(() => {
+        onClose();
+      }, 600);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, isConnected]);
+  }, [isOpen, isConnected, onClose]);
 
   if (!isOpen) return null;
 
@@ -491,6 +497,43 @@ export function WalletConnectModal({
                     >
                       <QrCode className="w-4 h-4" />
                       <span>{showQrFallback ? 'Hide QR' : 'Show QR'}</span>
+                    </button>
+                  </div>
+
+                  {/* Mobile Return Guidance Note */}
+                  <div className="p-3.5 bg-[#0B1026] border border-[#20E56B]/30 rounded-xl text-xs space-y-2.5">
+                    <div className="flex items-center gap-2 text-[#20E56B] font-semibold text-xs">
+                      <Sparkles className="w-4 h-4" />
+                      <span>Mobile Connection Steps</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 text-[11px] text-[#A7AEC4]">
+                      <div className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#131A38] text-white font-bold flex items-center justify-center shrink-0 text-[10px] border border-[#242E5E]">1</span>
+                        <span>Tap <strong>Open {selectedMobileWallet.name} App</strong> above.</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#131A38] text-white font-bold flex items-center justify-center shrink-0 text-[10px] border border-[#242E5E]">2</span>
+                        <span>Tap <strong>Approve</strong> on the connection screen.</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#20E56B]/20 text-[#20E56B] font-bold flex items-center justify-center shrink-0 text-[10px] border border-[#20E56B]/40">3</span>
+                        <span>Tap the <strong>✕</strong> icon (top-left) in the wallet or switch back to this tab. Your session is active!</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isConnected) {
+                          onClose();
+                        } else {
+                          // Check if provider is connected
+                          onClose();
+                        }
+                      }}
+                      className="w-full mt-2 py-2 px-3 bg-[#131A38] hover:bg-[#182247] text-white rounded-lg text-xs font-semibold border border-[#242E5E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5 text-[#20E56B]" />
+                      <span>I've Approved in {selectedMobileWallet.name}</span>
                     </button>
                   </div>
 

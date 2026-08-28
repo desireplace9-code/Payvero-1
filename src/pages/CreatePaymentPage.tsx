@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { AppView } from '../components/Navbar';
 import { Payment } from '../types';
-import { formatTokenAmount } from '../config/tokens';
+import { formatTokenAmount, shortenAddress } from '../config/tokens';
 import { 
   DEFAULT_PAYMENT_ASSET, 
   getPaymentAssetById, 
@@ -10,6 +10,7 @@ import {
 import { PaymentAsset } from '../services/chains/types';
 import { usePayments } from '../hooks/usePayments';
 import { useMerchant } from '../hooks/useMerchant';
+import { useMerchantWallet } from '../hooks/useMerchantWallet';
 import { QRCodeCard } from '../components/QRCodeCard';
 import { CopyButton } from '../components/CopyButton';
 import { AddressDisplay } from '../components/AddressDisplay';
@@ -25,7 +26,8 @@ import {
   Layers,
   Clock,
   ChevronDown,
-  Globe
+  Globe,
+  Wallet
 } from 'lucide-react';
 
 interface CreatePaymentPageProps {
@@ -35,6 +37,12 @@ interface CreatePaymentPageProps {
 export function CreatePaymentPage({ onNavigate }: CreatePaymentPageProps) {
   const { createPayment } = usePayments();
   const { merchant } = useMerchant();
+  const { 
+    isConnected: isMerchantWalletConnected, 
+    address: merchantConnectedAddress, 
+    networkName: merchantConnectedNetworkName,
+    openModal: openMerchantWalletModal 
+  } = useMerchantWallet();
 
   const [amount, setAmount] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<PaymentAsset>(() => {
@@ -52,9 +60,23 @@ export function CreatePaymentPage({ onNavigate }: CreatePaymentPageProps) {
   // Result state after creation
   const [createdPayment, setCreatedPayment] = useState<Payment | null>(null);
 
+  // The receiving destination depends strictly on the merchant's active connected wallet session
+  const activeReceivingAddress = (isMerchantWalletConnected && merchantConnectedAddress) 
+    ? merchantConnectedAddress.trim() 
+    : '';
+
+  const isReceivingWalletConnected = Boolean(isMerchantWalletConnected && merchantConnectedAddress && merchantConnectedAddress.trim().length > 0);
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    // Validate that merchant has connected their receiving wallet
+    if (!isReceivingWalletConnected || !activeReceivingAddress) {
+      setFormError('Merchant wallet not connected. Please connect your merchant wallet first to receive customer funds directly to your sovereign address.');
+      openMerchantWalletModal();
+      return;
+    }
 
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -78,6 +100,7 @@ export function CreatePaymentPage({ onNavigate }: CreatePaymentPageProps) {
       description,
       customerReference: customerReference.trim() || undefined,
       expiresInMinutes,
+      merchantWallet: activeReceivingAddress,
     });
 
     if (!res.success || !res.payment) {
@@ -417,28 +440,61 @@ export function CreatePaymentPage({ onNavigate }: CreatePaymentPageProps) {
             </div>
 
             {/* Merchant Destination Info */}
-            <div className="p-4 rounded-xl bg-[#0B1026] border border-[#242E5E] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5">
-                <Layers className="w-4 h-4 text-[#20E56B]" />
+            <div className="p-4 rounded-xl bg-[#0B1026] border border-[#242E5E] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className={`p-2 rounded-lg shrink-0 ${isReceivingWalletConnected ? 'bg-[#20E56B]/15 text-[#20E56B]' : 'bg-amber-500/15 text-amber-400'}`}>
+                  {isReceivingWalletConnected ? (
+                    <Layers className="w-4 h-4" />
+                  ) : (
+                    <Wallet className="w-4 h-4" />
+                  )}
+                </div>
                 <div>
-                  <span className="text-[#A7AEC4] block text-[11px]">Receiving Destination ({selectedAsset.networkName}):</span>
-                  <AddressDisplay 
-                    address={
-                      selectedAsset.networkId === 'tron' 
-                        ? (merchant.tronWalletAddress || merchant.walletAddress) 
-                        : selectedAsset.networkId === 'bitcoin'
-                        ? (merchant.bitcoinWalletAddress || merchant.walletAddress)
-                        : merchant.walletAddress
-                    } 
-                    type="address" 
-                    chainId={selectedAsset.networkChainId || 137} 
-                    chars={6} 
-                  />
+                  <span className="text-[#A7AEC4] block text-[11px]">
+                    Receiving Destination ({selectedAsset.networkName}):
+                  </span>
+                  {isReceivingWalletConnected ? (
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      <span className="font-mono font-bold text-white text-xs">
+                        {shortenAddress(activeReceivingAddress, 6)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-[#20E56B]/15 text-[#20E56B] border border-[#20E56B]/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#20E56B] animate-pulse" />
+                        Connected
+                      </span>
+                      <span className="text-[#A7AEC4] text-[11px] font-medium bg-[#131A38] px-2 py-0.5 rounded border border-[#242E5E]">
+                        {merchantConnectedNetworkName || selectedAsset.networkName}
+                      </span>
+                      <CopyButton text={activeReceivingAddress} label="Copy" className="text-[10px] py-0.5 px-2" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-amber-400 font-semibold text-xs flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Merchant wallet not connected
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <span className="text-[#20E56B] text-[11px] font-medium bg-[#20E56B]/10 px-2.5 py-1 rounded-md border border-[#20E56B]/20">
-                Direct Sovereign Settlement
-              </span>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                {isReceivingWalletConnected ? (
+                  <span className="text-[#20E56B] text-[11px] font-medium bg-[#20E56B]/10 px-2.5 py-1 rounded-md border border-[#20E56B]/20 whitespace-nowrap">
+                    Direct Sovereign Settlement
+                  </span>
+                ) : (
+                  <button
+                    id="btn-connect-merchant-receiving-wallet"
+                    type="button"
+                    onClick={openMerchantWalletModal}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#20E56B] text-[#0B1026] hover:bg-[#1ac95c] transition-colors flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+                  >
+                    <Wallet className="w-3.5 h-3.5" />
+                    <span>Connect Merchant Wallet</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Buttons */}

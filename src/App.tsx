@@ -8,13 +8,12 @@ import { CreatePaymentPage } from './pages/CreatePaymentPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { TransactionDetailsPage } from './pages/TransactionDetailsPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { useWallet } from './hooks/useWallet';
+import { MerchantWalletProvider, useMerchantWallet } from './hooks/useMerchantWallet';
 import { usePayments } from './hooks/usePayments';
 
-export default function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState<AppView>('landing');
   const [viewParam, setViewParam] = useState<string | undefined>(undefined);
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
 
   const {
     isConnected,
@@ -31,7 +30,10 @@ export default function App() {
     clearError,
     isProviderAvailable,
     isWalletConnectConfigured,
-  } = useWallet();
+    isModalOpen,
+    openModal,
+    closeModal,
+  } = useMerchantWallet();
 
   const { payments } = usePayments();
   const pendingCount = payments.filter((p) => p.status === 'pending').length;
@@ -40,7 +42,6 @@ export default function App() {
   const parseHash = useCallback(() => {
     const hash = window.location.hash.replace('#', '').trim();
     if (!hash) {
-      // Default to landing
       return;
     }
 
@@ -102,7 +103,7 @@ export default function App() {
         onNavigate={handleNavigate}
         isConnected={isConnected}
         walletAddress={address}
-        onOpenWalletModal={() => setIsWalletModalOpen(true)}
+        onOpenWalletModal={openModal}
         pendingPaymentCount={pendingCount}
       />
 
@@ -127,7 +128,7 @@ export default function App() {
           <CheckoutPage
             paymentId={viewParam}
             onNavigate={handleNavigate}
-            onOpenWalletModal={() => setIsWalletModalOpen(true)}
+            onOpenWalletModal={openModal}
           />
         )}
 
@@ -146,10 +147,10 @@ export default function App() {
       {/* Footer */}
       <Footer onNavigate={handleNavigate} />
 
-      {/* Web3 Wallet Modal */}
+      {/* Web3 Merchant Wallet Modal */}
       <WalletConnectModal
-        isOpen={isWalletModalOpen}
-        onClose={() => setIsWalletModalOpen(false)}
+        isOpen={isModalOpen}
+        onClose={closeModal}
         isConnected={isConnected}
         address={address}
         chainId={chainId}
@@ -166,5 +167,13 @@ export default function App() {
         onAbort={abortConnection}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <MerchantWalletProvider>
+      <AppContent />
+    </MerchantWalletProvider>
   );
 }

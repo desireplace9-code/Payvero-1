@@ -2,9 +2,12 @@ import { AppView } from '../components/Navbar';
 import { RevenueCards } from '../components/RevenueCards';
 import { TransactionTable } from '../components/TransactionTable';
 import { AddressDisplay } from '../components/AddressDisplay';
+import { CopyButton } from '../components/CopyButton';
+import { shortenAddress } from '../config/tokens';
 import { usePayments } from '../hooks/usePayments';
 import { useMerchant } from '../hooks/useMerchant';
-import { PlusCircle, RefreshCw, ShieldCheck, Wallet, ArrowUpRight } from 'lucide-react';
+import { useMerchantWallet } from '../hooks/useMerchantWallet';
+import { PlusCircle, RefreshCw, ShieldCheck, Wallet, ArrowUpRight, AlertCircle } from 'lucide-react';
 
 interface DashboardPageProps {
   onNavigate: (view: AppView, param?: string) => void;
@@ -13,6 +16,14 @@ interface DashboardPageProps {
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const { payments, summary, refresh, isLoading } = usePayments();
   const { merchant } = useMerchant();
+  const { 
+    isConnected: isMerchantConnected, 
+    address: merchantConnectedAddress, 
+    networkName: merchantNetworkName,
+    openModal: openMerchantModal 
+  } = useMerchantWallet();
+
+  const activeReceivingAddress = isMerchantConnected && merchantConnectedAddress ? merchantConnectedAddress : '';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8" id="dashboard-page">
@@ -67,26 +78,59 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       {/* Merchant Wallet Receiving Address Callout */}
       <div className="bg-[#131A38] border border-[#242E5E] rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[#4D7CFE]/15 text-[#4D7CFE]">
+          <div className={`p-2 rounded-lg ${activeReceivingAddress ? 'bg-[#20E56B]/15 text-[#20E56B]' : 'bg-amber-500/15 text-amber-400'}`}>
             <Wallet className="w-4 h-4" />
           </div>
           <div>
             <span className="text-[#A7AEC4] block text-[11px]">Primary Settlement Receiving Wallet:</span>
-            <AddressDisplay address={merchant.walletAddress} type="address" chainId={137} chars={6} />
+            {activeReceivingAddress ? (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="font-mono font-bold text-white text-xs">
+                  {shortenAddress(activeReceivingAddress, 6)}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-[#20E56B]/15 text-[#20E56B] border border-[#20E56B]/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#20E56B] animate-pulse" />
+                  Connected
+                </span>
+                <span className="text-[#A7AEC4] text-[11px] font-medium bg-[#0B1026] px-2 py-0.5 rounded border border-[#242E5E]">
+                  {merchantNetworkName || 'Polygon PoS'}
+                </span>
+                <CopyButton text={activeReceivingAddress} label="Copy" className="text-[10px] py-0.5 px-2" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-amber-400 font-medium text-xs flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Merchant wallet not connected
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-4 text-[#A7AEC4] text-[11px]">
-          <span className="flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#20E56B]" />
-            Funds transfer directly to this address
-          </span>
+          {activeReceivingAddress ? (
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#20E56B]" />
+              Funds transfer directly to this address
+            </span>
+          ) : (
+            <button
+              id="btn-dashboard-connect-receiving"
+              type="button"
+              onClick={openMerchantModal}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#20E56B] text-[#0B1026] hover:bg-[#1ac95c] transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              <span>Connect Receiving Wallet</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onNavigate('settings')}
             className="text-[#4D7CFE] hover:underline font-medium flex items-center gap-0.5"
           >
-            <span>Change</span>
+            <span>Settings</span>
             <ArrowUpRight className="w-3 h-3" />
           </button>
         </div>

@@ -18,8 +18,8 @@ const INITIAL_SAMPLE_PAYMENTS: Payment[] = [
     id: 'pay_9821a0f',
     merchantId: 'mch_9281a4b',
     customerWallet: '0x3841D3Bf48c1e8790A2b2023a1050A4E385D7e31',
-    merchantWallet: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
-    merchantDestination: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
+    merchantWallet: '',
+    merchantDestination: '',
     assetId: 'pol-polygon',
     token: 'POL',
     tokenSymbol: 'POL',
@@ -41,8 +41,8 @@ const INITIAL_SAMPLE_PAYMENTS: Payment[] = [
     id: 'pay_7362b1e',
     merchantId: 'mch_9281a4b',
     customerWallet: '0x9924c29188E65324D6FaAf19965a3d7589d8B33a',
-    merchantWallet: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
-    merchantDestination: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
+    merchantWallet: '',
+    merchantDestination: '',
     assetId: 'usdt-polygon',
     token: 'USDT',
     tokenSymbol: 'USDT',
@@ -64,8 +64,8 @@ const INITIAL_SAMPLE_PAYMENTS: Payment[] = [
     id: 'pay_6144c2d',
     merchantId: 'mch_9281a4b',
     customerWallet: '0xbAe1687f87f54c414A895F6f3281E15De46Fa7e9',
-    merchantWallet: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
-    merchantDestination: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
+    merchantWallet: '',
+    merchantDestination: '',
     assetId: 'verse-polygon',
     token: 'VERSE',
     tokenSymbol: 'VERSE',
@@ -87,8 +87,8 @@ const INITIAL_SAMPLE_PAYMENTS: Payment[] = [
     id: 'pay_5109d3c',
     merchantId: 'mch_9281a4b',
     customerWallet: '0x55E9fF95725e2E8354c4fA2D87B4156b820a4D71',
-    merchantWallet: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
-    merchantDestination: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
+    merchantWallet: '',
+    merchantDestination: '',
     assetId: 'usdt-polygon',
     token: 'USDT',
     tokenSymbol: 'USDT',
@@ -110,8 +110,8 @@ const INITIAL_SAMPLE_PAYMENTS: Payment[] = [
     id: 'pay_4021e4b',
     merchantId: 'mch_9281a4b',
     customerWallet: '0x8849bCd2837f4044A1eE44aF8444aDFe10793d56',
-    merchantWallet: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
-    merchantDestination: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
+    merchantWallet: '',
+    merchantDestination: '',
     assetId: 'pol-polygon',
     token: 'POL',
     tokenSymbol: 'POL',
@@ -131,8 +131,8 @@ const INITIAL_SAMPLE_PAYMENTS: Payment[] = [
     id: 'pay_3910f5a',
     merchantId: 'mch_9281a4b',
     customerWallet: '0x17c9135a5C6dEe73A99602410c59800B02581023',
-    merchantWallet: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
-    merchantDestination: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
+    merchantWallet: '',
+    merchantDestination: '',
     assetId: 'verse-polygon',
     token: 'VERSE',
     tokenSymbol: 'VERSE',
@@ -162,6 +162,10 @@ export class PaymentService {
         const parsed = JSON.parse(stored) as Payment[];
         // Ensure legacy payments have assetId and tokenSymbol populated
         return parsed.map((p) => {
+          if (p.merchantWallet === '0x71C8360e3268cbE02e429352e8964344Fa5aB162') {
+            p.merchantWallet = '';
+            p.merchantDestination = '';
+          }
           if (!p.assetId) {
             const sym = (p.token || 'POL').toLowerCase();
             p.assetId = `${sym}-polygon`;
@@ -229,19 +233,26 @@ export class PaymentService {
       };
     }
 
-    // Resolve destination address according to network
+    // Resolve destination address according to network and active connected merchant wallet
     const merchant = merchantService.getMerchant();
-    let destinationAddress = merchant.walletAddress;
+    let destinationAddress = (input.merchantWallet || merchant.walletAddress || '').trim();
     if (asset.networkId === 'tron' && merchant.tronWalletAddress) {
-      destinationAddress = merchant.tronWalletAddress;
+      destinationAddress = merchant.tronWalletAddress.trim();
     } else if (asset.networkId === 'bitcoin' && merchant.bitcoinWalletAddress) {
-      destinationAddress = merchant.bitcoinWalletAddress;
+      destinationAddress = merchant.bitcoinWalletAddress.trim();
     }
 
-    if (!destinationAddress || !isValidNetworkAddress(destinationAddress, asset.networkId)) {
+    if (!destinationAddress || destinationAddress.length === 0) {
       return {
         success: false,
-        error: `Invalid or missing merchant settlement address for ${asset.networkName}. Please configure this wallet in Merchant Settings.`,
+        error: 'Merchant receiving wallet is not connected. Please connect your merchant wallet to receive payments.',
+      };
+    }
+
+    if (!isValidNetworkAddress(destinationAddress, asset.networkId)) {
+      return {
+        success: false,
+        error: `Invalid receiving address (${destinationAddress}) for ${asset.networkName}. Please connect a compatible merchant wallet.`,
       };
     }
 

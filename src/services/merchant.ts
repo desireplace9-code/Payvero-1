@@ -6,9 +6,9 @@ const MERCHANT_STORAGE_KEY = 'payvero_merchant_settings';
 const DEFAULT_MERCHANT: Merchant = {
   id: 'mch_9281a4b',
   name: 'Acme Digital Commerce',
-  walletAddress: '0x71C8360e3268cbE02e429352e8964344Fa5aB162',
-  tronWalletAddress: 'TNPeeaaFB7K9cmo4uQpcU32zGK8G1NYqeL',
-  bitcoinWalletAddress: 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+  walletAddress: '',
+  tronWalletAddress: '',
+  bitcoinWalletAddress: '',
   supportedTokens: ['pol-polygon', 'usdt-polygon', 'verse-polygon'],
   email: 'finance@acmedigital.io',
   webhookUrl: 'https://api.acmedigital.io/webhooks/payvero',
@@ -26,6 +26,16 @@ export class MerchantService {
       const stored = localStorage.getItem(MERCHANT_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as Merchant;
+        // Purge legacy hard-coded test wallet address
+        if (parsed.walletAddress === '0x71C8360e3268cbE02e429352e8964344Fa5aB162') {
+          parsed.walletAddress = '';
+        }
+        if (parsed.tronWalletAddress === 'TNPeeaaFB7K9cmo4uQpcU32zGK8G1NYqeL') {
+          parsed.tronWalletAddress = '';
+        }
+        if (parsed.bitcoinWalletAddress === 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq') {
+          parsed.bitcoinWalletAddress = '';
+        }
         // Migrate legacy symbol array to assetIds if needed and deduplicate
         if (parsed.supportedTokens && parsed.supportedTokens.length > 0) {
           const mapped = parsed.supportedTokens.map((t) => {

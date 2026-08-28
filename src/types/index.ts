@@ -53,6 +53,7 @@ export interface CreatePaymentInput {
   description: string;
   customerReference?: string;
   expiresInMinutes?: number;
+  merchantWallet?: string; // Explicit merchant connected receiving wallet address
 }
 
 export interface Merchant {

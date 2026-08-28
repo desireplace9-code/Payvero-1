@@ -98,7 +98,7 @@ export async function connectInjectedWallet(): Promise<WalletConnectionResult> {
 
 /**
  * Initializes and caches the singleton EthereumProvider instance.
- * Advertises Polygon PoS (137), Ethereum Mainnet (1), and BNB Smart Chain (56) in proposal configuration.
+ * Advertises Polygon PoS (137), Ethereum Mainnet (1), BNB Smart Chain (56), Arbitrum, Base, Optimism in proposal configuration.
  */
 export async function getOrCreateWalletConnectProvider(preferredChainId: number = 137): Promise<any> {
   if (activeWalletConnectProvider) {
@@ -112,29 +112,30 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
     const { EthereumProvider } = await import('@walletconnect/ethereum-provider');
     
     // Official redirect URL: use the clean current page URL so mobile wallets return seamlessly upon approval
-    const currentUrl = typeof window !== 'undefined'
-      ? window.location.origin + window.location.pathname
-      : 'https://payvero.io';
     const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://payvero.io';
+    const appUrl = typeof window !== 'undefined'
+      ? (window.location.origin + window.location.pathname).replace(/\/$/, '')
+      : 'https://payvero.io';
 
-    // Primary chain is Polygon PoS (137), with Ethereum Mainnet (1) and BNB Smart Chain (56) in optionalChains
+    // Primary chain is Polygon PoS (137), with Ethereum (1) and BNB Smart Chain (56) in proposal configuration
     const primaryChain = preferredChainId || 137;
-    const optionalChainsList = [137, 1, 56, 80002].filter((c) => c !== primaryChain);
+    const allSupportedChains = [137, 1, 56, 80002];
+    const optionalChainsList = allSupportedChains.filter((c) => c !== primaryChain);
 
     const provider = await EthereumProvider.init({
       projectId: ENV_CONFIG.walletConnectProjectId,
-      // Target Polygon PoS as primary, with Ethereum Mainnet and BNB Chain as optional
+      relayUrl: 'wss://relay.walletconnect.org',
       chains: [primaryChain],
       optionalChains: optionalChainsList,
       methods: [
         'eth_sendTransaction',
         'personal_sign',
-        'eth_signTypedData',
-        'eth_signTypedData_v4',
       ],
       optionalMethods: [
         'eth_signTransaction',
+        'eth_signTypedData',
         'eth_signTypedData_v3',
+        'eth_signTypedData_v4',
         'wallet_switchEthereumChain',
         'wallet_addEthereumChain',
         'wallet_watchAsset',
@@ -153,11 +154,12 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
       showQrModal: false,
       metadata: {
         name: 'Payvero',
-        description: 'Multi-Chain Non-Custodial Crypto Payments',
+        description: 'Multi-Chain Non-Custodial Crypto Payments & Checkout',
         url: appOrigin,
         icons: [`${appOrigin}/icon.png`],
         redirect: {
-          universal: currentUrl,
+          native: 'payvero://',
+          universal: appUrl,
         },
       },
       rpcMap: {
@@ -165,6 +167,9 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
         1: 'https://eth.llamarpc.com',
         56: 'https://bsc-dataseed.binance.org',
         80002: 'https://rpc-amoy.polygon.technology',
+        10: 'https://mainnet.optimism.io',
+        42161: 'https://arb1.arbitrum.io/rpc',
+        8453: 'https://mainnet.base.org',
       },
     });
 
@@ -272,7 +277,7 @@ export async function connectWalletConnectSession(
       onUriReceived?.(uri);
       onStatusChange?.(`Opening ${targetWallet.name}... Please approve connection proposal.`);
 
-      // On mobile devices, automatically trigger official deep link to target wallet
+      // Automatically trigger deep link to target mobile wallet
       if (selectedWalletId && selectedWalletId !== 'generic') {
         openMobileWalletDeepLink(targetWallet, uri);
       }
@@ -280,7 +285,24 @@ export async function connectWalletConnectSession(
 
     provider.once('display_uri', uriHandler);
 
-    // Timeout guard (180s) to give user ample time to unlock mobile app and tap Approve
+    // Foreground listener: when mobile browser returns to foreground from wallet app,
+    // ensure relay transport is actively running and consuming queued session approvals.
+    const handleForegroundResume = () => {
+      try {
+        if (provider?.signer?.client?.core?.relayer) {
+          provider.signer.client.core.relayer.restartTransport?.();
+        }
+      } catch {
+        // Ignore
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleForegroundResume);
+      window.addEventListener('focus', handleForegroundResume);
+    }
+
+    // Timeout guard (120s) to give user ample time to unlock mobile app and tap Approve
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let manualAbortReject: ((err: Error) => void) | null = null;
 
@@ -293,7 +315,7 @@ export async function connectWalletConnectSession(
           // Ignore
         }
         reject(new Error('CONNECTION_TIMEOUT'));
-      }, 180000);
+      }, 120000);
     });
 
     currentPairingAbortController = () => {
@@ -312,11 +334,29 @@ export async function connectWalletConnectSession(
     // Connect to WalletConnect relay and await session approval
     const connectPromise = provider.connect();
 
+    // Also listen for early connect or accountsChanged events
+    const sessionEstablishedPromise = new Promise<void>((resolve) => {
+      const onConnectEvent = () => resolve();
+      const onAccountsEvent = (accs: any) => {
+        if (Array.isArray(accs) && accs.length > 0) resolve();
+      };
+      provider.once('connect', onConnectEvent);
+      provider.once('accountsChanged', onAccountsEvent);
+    });
+
     try {
-      await Promise.race([connectPromise, abortPromise]);
+      await Promise.race([
+        connectPromise,
+        sessionEstablishedPromise,
+        abortPromise,
+      ]);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
       currentPairingAbortController = null;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleForegroundResume);
+        window.removeEventListener('focus', handleForegroundResume);
+      }
       try {
         provider.removeListener('display_uri', uriHandler);
       } catch {

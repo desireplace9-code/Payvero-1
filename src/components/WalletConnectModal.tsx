@@ -102,7 +102,10 @@ export function WalletConnectModal({
     setSelectedMobileWallet(null);
     setPairingUri(null);
     try {
-      await onConnect('injected');
+      const res = await onConnect('injected');
+      if (res && typeof res === 'object' && 'success' in res && (res as any).success) {
+        onClose();
+      }
     } catch {
       // Handled by state
     }
@@ -115,7 +118,7 @@ export function WalletConnectModal({
     setShowQrFallback(wallet.id === 'generic' || !isMobileDevice());
 
     try {
-      await onConnect('walletconnect', {
+      const res = await onConnect('walletconnect', {
         selectedWalletId: wallet.id,
         preferredChainId: chainId || 137,
         onUriReceived: (uri: string) => {
@@ -126,6 +129,9 @@ export function WalletConnectModal({
           setPairingStatus(status);
         },
       });
+      if (res && typeof res === 'object' && 'success' in res && (res as any).success) {
+        onClose();
+      }
     } catch {
       // Error handled in state
     }

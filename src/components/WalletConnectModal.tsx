@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Wallet, 
@@ -14,7 +14,9 @@ import {
   ArrowLeft, 
   Sparkles,
   ShieldCheck,
-  Coins
+  Coins,
+  LogOut,
+  Unlink
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { AddressDisplay } from './AddressDisplay';
@@ -30,7 +32,7 @@ import {
   isMobileDevice
 } from '../services/wallet/mobileWallets';
 import { ConnectOptions } from '../hooks/useCustomerWallet';
-import { abortWalletConnectPairing } from '../services/wallet/connector';
+import { abortWalletConnectPairing, getActiveWalletSession } from '../services/wallet/connector';
 
 interface WalletConnectModalProps {
   isOpen: boolean;
@@ -85,22 +87,18 @@ export function WalletConnectModal({
   const [showQrFallback, setShowQrFallback] = useState(false);
   const [copiedUri, setCopiedUri] = useState(false);
   const [isSwitchingChain, setIsSwitchingChain] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
-  // Reset pairing state when modal is closed or when wallet is successfully connected
+  // Reset pairing state when modal is closed
   useEffect(() => {
     if (!isOpen) {
       setSelectedMobileWallet(null);
       setPairingUri(null);
       setShowQrFallback(false);
       setCopiedUri(false);
-    } else if (isConnected) {
-      // Auto-close modal after brief visual confirmation when connected
-      const timer = setTimeout(() => {
-        onClose();
-      }, 600);
-      return () => clearTimeout(timer);
+      setIsDisconnecting(false);
     }
-  }, [isOpen, isConnected, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -262,19 +260,42 @@ export function WalletConnectModal({
               </p>
             </div>
           </div>
-          <button
-            id="btn-close-wallet-modal"
-            type="button"
-            onClick={() => {
-              if (selectedMobileWallet && isConnecting) {
-                handleCancelPairing();
-              }
-              onClose();
-            }}
-            className="p-1.5 text-[#A7AEC4] hover:text-white rounded-lg hover:bg-[#0B1026] transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {isConnected && (
+              <button
+                id="btn-modal-header-disconnect"
+                type="button"
+                onClick={async () => {
+                  setIsDisconnecting(true);
+                  try {
+                    await onDisconnect();
+                    onClose();
+                  } finally {
+                    setIsDisconnecting(false);
+                  }
+                }}
+                disabled={isDisconnecting}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                title="Disconnect this wallet"
+              >
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Disconnect</span>
+              </button>
+            )}
+            <button
+              id="btn-close-wallet-modal"
+              type="button"
+              onClick={() => {
+                if (selectedMobileWallet && isConnecting) {
+                  handleCancelPairing();
+                }
+                onClose();
+              }}
+              className="p-1.5 text-[#A7AEC4] hover:text-white rounded-lg hover:bg-[#0B1026] transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Content */}
@@ -401,24 +422,42 @@ export function WalletConnectModal({
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   id="btn-disconnect-wallet"
                   type="button"
                   onClick={async () => {
-                    await onDisconnect();
+                    setIsDisconnecting(true);
+                    try {
+                      await onDisconnect();
+                      onClose();
+                    } finally {
+                      setIsDisconnecting(false);
+                    }
                   }}
-                  className="w-full py-2.5 px-4 text-xs font-semibold rounded-xl bg-[#0B1026] hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
+                  disabled={isDisconnecting}
+                  className="w-full py-3 px-4 text-xs font-bold rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                 >
-                  Disconnect
+                  {isDisconnecting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-rose-400" />
+                      <span>Disconnecting Wallet...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="w-4 h-4 text-rose-400" />
+                      <span>Disconnect Wallet</span>
+                    </>
+                  )}
                 </button>
                 <button
                   id="btn-done-wallet"
                   type="button"
                   onClick={onClose}
-                  className="w-full py-2.5 px-4 text-xs font-semibold rounded-xl bg-[#20E56B] text-[#0B1026] hover:bg-[#1ac95c] transition-colors cursor-pointer font-bold"
+                  className="w-full sm:w-1/2 py-3 px-4 text-xs font-bold rounded-xl bg-[#20E56B] text-[#0B1026] hover:bg-[#1ac95c] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  Done
+                  <Check className="w-4 h-4" />
+                  <span>Done</span>
                 </button>
               </div>
             </div>
@@ -513,7 +552,7 @@ export function WalletConnectModal({
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="w-5 h-5 rounded-full bg-[#131A38] text-white font-bold flex items-center justify-center shrink-0 text-[10px] border border-[#242E5E]">2</span>
-                        <span>Tap <strong>Approve</strong> on the connection screen.</span>
+                        <span>Select <strong>Polygon PoS</strong>, Ethereum, or BNB and tap <strong>Connect / Approve</strong>.</span>
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="w-5 h-5 rounded-full bg-[#20E56B]/20 text-[#20E56B] font-bold flex items-center justify-center shrink-0 text-[10px] border border-[#20E56B]/40">3</span>
@@ -522,15 +561,15 @@ export function WalletConnectModal({
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isConnected) {
-                          onClose();
-                        } else {
-                          // Check if provider is connected
-                          onClose();
+                      onClick={async () => {
+                        try {
+                          await getActiveWalletSession();
+                        } catch {
+                          // Ignore
                         }
+                        onClose();
                       }}
-                      className="w-full mt-2 py-2 px-3 bg-[#131A38] hover:bg-[#182247] text-white rounded-lg text-xs font-semibold border border-[#242E5E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full mt-2 py-2.5 px-3 bg-[#20E56B]/15 hover:bg-[#20E56B]/25 text-[#20E56B] rounded-lg text-xs font-semibold border border-[#20E56B]/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5 text-[#20E56B]" />
                       <span>I've Approved in {selectedMobileWallet.name}</span>

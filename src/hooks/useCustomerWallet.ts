@@ -9,7 +9,8 @@ import {
   disconnectWalletConnectSession,
   isInjectedAvailable, 
   isWalletConnectConfigured,
-  switchWalletChain 
+  switchWalletChain,
+  getActiveWalletSession
 } from '../services/wallet/connector';
 import { getChainName, EVM_CHAINS } from '../services/wallet/chains';
 import { Eip1193Provider, WalletConnectorType, WalletConnectionResult } from '../services/wallet/types';
@@ -63,6 +64,58 @@ export function useCustomerWallet() {
   });
 
   const activeProviderRef = useRef<Eip1193Provider | null>(null);
+
+  // Synchronize state with any active or restored session
+  const syncSession = useCallback(async () => {
+    try {
+      const activeSession = await getActiveWalletSession();
+      if (activeSession && activeSession.address) {
+        activeProviderRef.current = activeSession.provider;
+        const networkName = getChainName(activeSession.chainId);
+        setState((prev) => ({
+          ...prev,
+          isConnected: true,
+          address: activeSession.address,
+          chainId: activeSession.chainId,
+          networkName,
+          connectorType: activeSession.connectorType,
+          approvedChains: activeSession.approvedChains,
+          approvedAccounts: activeSession.approvedAccounts,
+          bitcoinAddress: activeSession.bitcoinAddress || null,
+          supportedAssets: activeSession.supportedAssets,
+          isConnecting: false,
+          error: null,
+        }));
+        return true;
+      }
+    } catch {
+      // Ignore
+    }
+    return false;
+  }, []);
+
+  // Sync session on mount and when browser returns to foreground (tab resume / app switch)
+  useEffect(() => {
+    syncSession();
+
+    const handleResume = () => {
+      syncSession();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleResume);
+      window.addEventListener('pageshow', handleResume);
+      window.addEventListener('focus', handleResume);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleResume);
+        window.removeEventListener('pageshow', handleResume);
+        window.removeEventListener('focus', handleResume);
+      }
+    };
+  }, [syncSession]);
 
   // Connect customer wallet either via Injected Extension or WalletConnect Mobile
   const connect = useCallback(async (connectorType: WalletConnectorType = 'injected', options?: ConnectOptions) => {
@@ -228,6 +281,7 @@ export function useCustomerWallet() {
       } else if (isValidEvmAddress(accs[0])) {
         setState((prev) => ({
           ...prev,
+          isConnected: true,
           address: accs[0],
           approvedAccounts: accs,
           error: null,
@@ -244,10 +298,15 @@ export function useCustomerWallet() {
 
       setState((prev) => ({
         ...prev,
+        isConnected: true,
         chainId: parsedChainId,
         networkName: getChainName(parsedChainId),
         supportedAssets: Array.from(new Set([...prev.supportedAssets, ...newAssets])),
       }));
+    };
+
+    const handleConnect = () => {
+      syncSession();
     };
 
     const handleDisconnect = () => {
@@ -256,16 +315,18 @@ export function useCustomerWallet() {
 
     provider.on('accountsChanged', handleAccountsChanged);
     provider.on('chainChanged', handleChainChanged);
+    provider.on('connect', handleConnect);
     provider.on('disconnect', handleDisconnect);
 
     return () => {
       if (provider.removeListener) {
         provider.removeListener('accountsChanged', handleAccountsChanged);
         provider.removeListener('chainChanged', handleChainChanged);
+        provider.removeListener('connect', handleConnect);
         provider.removeListener('disconnect', handleDisconnect);
       }
     };
-  }, [disconnect, state.isConnected]);
+  }, [disconnect, state.isConnected, syncSession]);
 
   return {
     ...state,

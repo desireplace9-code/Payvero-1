@@ -104,6 +104,7 @@ function AppContent() {
         isConnected={isConnected}
         walletAddress={address}
         onOpenWalletModal={openModal}
+        onDisconnect={disconnect}
         pendingPaymentCount={pendingCount}
       />
 

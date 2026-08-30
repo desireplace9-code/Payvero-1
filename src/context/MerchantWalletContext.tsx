@@ -7,7 +7,8 @@ import {
   disconnectWalletConnectSession,
   isInjectedAvailable, 
   isWalletConnectConfigured,
-  switchWalletChain 
+  switchWalletChain,
+  getActiveWalletSession
 } from '../services/wallet/connector';
 import { getChainName } from '../services/wallet/chains';
 import { Eip1193Provider, WalletConnectorType, WalletConnectionResult } from '../services/wallet/types';
@@ -68,6 +69,57 @@ export function MerchantWalletProvider({ children }: { children: React.ReactNode
 
   const openModal = useCallback(() => setIsModalOpen(true), []);
   const closeModal = useCallback(() => setIsModalOpen(false), []);
+
+  // Synchronize state with any active or restored session
+  const syncSession = useCallback(async () => {
+    try {
+      const activeSession = await getActiveWalletSession();
+      if (activeSession && activeSession.address) {
+        activeProviderRef.current = activeSession.provider;
+        const networkName = getChainName(activeSession.chainId);
+        setState((prev) => ({
+          ...prev,
+          isConnected: true,
+          address: activeSession.address,
+          chainId: activeSession.chainId,
+          networkName,
+          connectorType: activeSession.connectorType,
+          isConnecting: false,
+          error: null,
+        }));
+        merchantService.updateMerchant({
+          walletAddress: activeSession.address,
+        });
+        return true;
+      }
+    } catch {
+      // Ignore
+    }
+    return false;
+  }, []);
+
+  // Sync session on mount and when browser returns to foreground (tab resume / app switch)
+  useEffect(() => {
+    syncSession();
+
+    const handleResume = () => {
+      syncSession();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleResume);
+      window.addEventListener('pageshow', handleResume);
+      window.addEventListener('focus', handleResume);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleResume);
+        window.removeEventListener('pageshow', handleResume);
+        window.removeEventListener('focus', handleResume);
+      }
+    };
+  }, [syncSession]);
 
   // Connect merchant receiving wallet
   const connect = useCallback(async (connectorType: WalletConnectorType = 'injected', options?: ConnectOptions) => {
@@ -226,22 +278,28 @@ export function MerchantWalletProvider({ children }: { children: React.ReactNode
       }));
     };
 
+    const handleConnect = () => {
+      syncSession();
+    };
+
     const handleDisconnect = () => {
       disconnect();
     };
 
     provider.on('accountsChanged', handleAccountsChanged);
     provider.on('chainChanged', handleChainChanged);
+    provider.on('connect', handleConnect);
     provider.on('disconnect', handleDisconnect);
 
     return () => {
       if (provider.removeListener) {
         provider.removeListener('accountsChanged', handleAccountsChanged);
         provider.removeListener('chainChanged', handleChainChanged);
+        provider.removeListener('connect', handleConnect);
         provider.removeListener('disconnect', handleDisconnect);
       }
     };
-  }, [disconnect, state.isConnected]);
+  }, [disconnect, state.isConnected, syncSession]);
 
   const value: MerchantWalletContextValue = {
     ...state,

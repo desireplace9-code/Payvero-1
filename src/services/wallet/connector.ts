@@ -119,14 +119,16 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
 
     // Primary chain is Polygon PoS (137), with Ethereum (1) and BNB Smart Chain (56) in proposal configuration
     const primaryChain = preferredChainId || 137;
-    const allSupportedChains = [137, 1, 56, 80002];
-    const optionalChainsList = allSupportedChains.filter((c) => c !== primaryChain);
+    // Explicitly include Polygon PoS (137), Ethereum (1), and BNB Smart Chain (56) in optionalChains
+    // so mobile wallets (Bitcoin.com Wallet, Trust Wallet, Rainbow, MetaMask) display Polygon PoS directly
+    // in their selectable chain approval prompt.
+    const allMainnetChains = [137, 1, 56];
 
     const provider = await EthereumProvider.init({
       projectId: ENV_CONFIG.walletConnectProjectId,
       relayUrl: 'wss://relay.walletconnect.org',
       chains: [primaryChain],
-      optionalChains: optionalChainsList,
+      optionalChains: allMainnetChains,
       methods: [
         'eth_sendTransaction',
         'personal_sign',
@@ -217,6 +219,69 @@ export function abortWalletConnectPairing(): void {
 }
 
 /**
+ * Checks and extracts any already-authenticated active session from the provider.
+ */
+export async function getActiveWalletSession(): Promise<ConnectedWalletSession | null> {
+  if (activeWalletConnectProvider) {
+    const provider = activeWalletConnectProvider;
+    let accounts: string[] = (provider.accounts || []) as string[];
+    if ((!accounts || accounts.length === 0) && provider.session?.namespaces?.eip155?.accounts) {
+      accounts = (provider.session.namespaces.eip155.accounts as string[]).map((acc: string) => {
+        const parts = acc.split(':');
+        return parts.length >= 3 ? parts[2] : acc;
+      });
+    }
+
+    if (accounts && accounts.length > 0 && isValidEvmAddress(accounts[0])) {
+      const address = accounts[0];
+      let chainId = Number(provider.chainId);
+      if (!chainId || isNaN(chainId) || chainId <= 0) {
+        if (provider.session?.namespaces?.eip155?.chains?.length) {
+          const firstChain = provider.session.namespaces.eip155.chains[0];
+          const parsed = Number(firstChain.split(':')[1]);
+          if (!isNaN(parsed) && parsed > 0) chainId = parsed;
+        }
+      }
+      if (!chainId || isNaN(chainId) || chainId <= 0) {
+        chainId = 137;
+      }
+
+      const approvedChains = extractApprovedChains(provider.session);
+      if (!approvedChains.includes(chainId)) {
+        approvedChains.push(chainId);
+      }
+      const supportedAssets = extractSupportedAssets(approvedChains);
+
+      let bitcoinAddress: string | null = null;
+      if (provider.session?.namespaces?.bip122?.accounts?.length) {
+        const btcAcc = provider.session.namespaces.bip122.accounts[0];
+        const parts = btcAcc.split(':');
+        const parsedBtc = parts.length >= 3 ? parts[2] : btcAcc;
+        if (isValidBitcoinAddress(parsedBtc)) {
+          bitcoinAddress = parsedBtc;
+          if (!supportedAssets.includes('BTC')) {
+            supportedAssets.push('BTC');
+          }
+        }
+      }
+
+      return {
+        address,
+        chainId,
+        connectorType: 'walletconnect',
+        provider: provider as unknown as Eip1193Provider,
+        approvedChains,
+        approvedAccounts: accounts,
+        bitcoinAddress,
+        supportedAssets,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Connects via WalletConnect v2 / Reown protocol to mobile crypto wallets
  * (Bitcoin.com Wallet, Trust Wallet, MetaMask Mobile, Rainbow, Zerion, etc.)
  * Generates the real connection proposal URI, launches the mobile wallet app,
@@ -243,30 +308,17 @@ export async function connectWalletConnectSession(
     onStatusChange?.(`Connecting to WalletConnect relay for ${targetWallet.name}...`);
     provider = await getOrCreateWalletConnectProvider(preferredChainId);
 
-    // If an existing authenticated session is already active in provider, verify and return
-    if (provider.session && provider.accounts && provider.accounts.length > 0) {
-      const address = provider.accounts[0];
-      const chainId = Number(provider.chainId) || preferredChainId || 137;
-
-      if (isValidEvmAddress(address)) {
-        const approvedChains = extractApprovedChains(provider.session);
-        const supportedAssets = extractSupportedAssets(approvedChains);
-
-        return {
-          success: true,
-          session: {
-            address,
-            chainId,
-            connectorType: 'walletconnect',
-            provider: provider as unknown as Eip1193Provider,
-            walletId: selectedWalletId,
-            walletName: targetWallet.name,
-            approvedChains,
-            approvedAccounts: provider.accounts,
-            supportedAssets,
-          },
-        };
-      }
+    // If an existing authenticated session is already active in provider, verify and return immediately
+    const existingSession = await getActiveWalletSession();
+    if (existingSession) {
+      return {
+        success: true,
+        session: {
+          ...existingSession,
+          walletId: selectedWalletId,
+          walletName: targetWallet.name,
+        },
+      };
     }
 
     // Capture the real pairing URI emitted from WalletConnect relay
@@ -284,26 +336,20 @@ export async function connectWalletConnectSession(
 
     provider.once('display_uri', uriHandler);
 
-    // Foreground listener: when mobile browser returns to foreground from wallet app,
-    // ensure relay transport is actively running and consuming queued session approvals.
-    const handleForegroundResume = () => {
-      try {
-        if (provider?.signer?.client?.core?.relayer) {
-          provider.signer.client.core.relayer.restartTransport?.();
-        }
-      } catch {
-        // Ignore
-      }
+    // Helper to check if session is settled in provider state
+    const isSessionSettled = (): boolean => {
+      if (!provider) return false;
+      const hasAccounts = Array.isArray(provider.accounts) && provider.accounts.length > 0 && isValidEvmAddress(provider.accounts[0]);
+      const hasSessionAccounts = Boolean(provider.session?.namespaces?.eip155?.accounts?.length);
+      const hasSignerSession = Boolean(provider.signer?.session?.namespaces?.eip155?.accounts?.length);
+      return Boolean(provider.connected || hasAccounts || hasSessionAccounts || hasSignerSession);
     };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('visibilitychange', handleForegroundResume);
-      window.addEventListener('focus', handleForegroundResume);
-    }
 
     // Timeout guard (120s) to give user ample time to unlock mobile app and tap Approve
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let pollIntervalId: ReturnType<typeof setInterval> | null = null;
     let manualAbortReject: ((err: Error) => void) | null = null;
+    let resolveSessionEstablished: (() => void) | null = null;
 
     const abortPromise = new Promise<never>((_, reject) => {
       manualAbortReject = reject;
@@ -331,17 +377,70 @@ export async function connectWalletConnectSession(
     onStatusChange?.(`Awaiting approval in ${targetWallet.name}...`);
     
     // Connect to WalletConnect relay and await session approval
-    const connectPromise = provider.connect();
-
-    // Also listen for early connect or accountsChanged events
-    const sessionEstablishedPromise = new Promise<void>((resolve) => {
-      const onConnectEvent = () => resolve();
-      const onAccountsEvent = (accs: any) => {
-        if (Array.isArray(accs) && accs.length > 0) resolve();
-      };
-      provider.once('connect', onConnectEvent);
-      provider.once('accountsChanged', onAccountsEvent);
+    const connectPromise = provider.connect().catch((err: any) => {
+      // If session is actually established despite rejection/reset, do not fail
+      if (isSessionSettled()) {
+        return;
+      }
+      throw err;
     });
+
+    // Multi-event resolution listener covering all WalletConnect / Reown lifecycle events
+    const sessionEstablishedPromise = new Promise<void>((resolve) => {
+      resolveSessionEstablished = resolve;
+
+      const triggerResolve = () => {
+        resolve();
+      };
+
+      // Provider events
+      provider.once('connect', triggerResolve);
+      provider.once('session_update', triggerResolve);
+      provider.once('session_event', triggerResolve);
+      provider.once('accountsChanged', (accs: any) => {
+        if (Array.isArray(accs) && accs.length > 0) triggerResolve();
+      });
+
+      // Signer / Client events
+      try {
+        provider.signer?.events?.once?.('session_settle', triggerResolve);
+        provider.signer?.events?.once?.('session_update', triggerResolve);
+        provider.signer?.client?.once?.('session_settle', triggerResolve);
+        provider.signer?.client?.once?.('session_connect', triggerResolve);
+        provider.signer?.client?.once?.('session_update', triggerResolve);
+      } catch {
+        // Ignore
+      }
+    });
+
+    // Foreground listener: when mobile browser returns to foreground from wallet app,
+    // ensure relay transport is actively running and consuming queued session approvals.
+    const handleForegroundResume = () => {
+      try {
+        if (provider?.signer?.client?.core?.relayer) {
+          provider.signer.client.core.relayer.restartTransport?.();
+        }
+      } catch {
+        // Ignore
+      }
+
+      if (isSessionSettled() && resolveSessionEstablished) {
+        resolveSessionEstablished();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleForegroundResume);
+      window.addEventListener('pageshow', handleForegroundResume);
+      window.addEventListener('focus', handleForegroundResume);
+    }
+
+    // Polling interval checking session state every 300ms
+    pollIntervalId = setInterval(() => {
+      if (isSessionSettled() && resolveSessionEstablished) {
+        resolveSessionEstablished();
+      }
+    }, 300);
 
     try {
       await Promise.race([
@@ -351,9 +450,11 @@ export async function connectWalletConnectSession(
       ]);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
+      if (pollIntervalId) clearInterval(pollIntervalId);
       currentPairingAbortController = null;
       if (typeof window !== 'undefined') {
         window.removeEventListener('visibilitychange', handleForegroundResume);
+        window.removeEventListener('pageshow', handleForegroundResume);
         window.removeEventListener('focus', handleForegroundResume);
       }
       try {

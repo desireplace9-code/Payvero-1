@@ -757,7 +757,9 @@ export async function connectWalletConnectSession(
       errorMsg.includes('relay') ||
       errorMsg.includes('project not found') ||
       errorMsg.includes('unauthorized') ||
-      errorMsg.includes('failed to fetch')
+      errorMsg.includes('failed to fetch') ||
+      errorMsg.includes('failed to publish custom payload') ||
+      errorMsg.includes('publish custom payload')
     ) {
       activeWalletConnectProvider = null;
       walletConnectInitPromise = null;
@@ -766,7 +768,7 @@ export async function connectWalletConnectSession(
         success: false,
         code: 'RELAY_CONNECTION_ERROR',
         error:
-          'Could not connect to the WalletConnect relay server. Please check network connection and verify VITE_WALLETCONNECT_PROJECT_ID.',
+          'WalletConnect relay was unable to deliver the connection proposal. The WalletConnect/Reown Project ID may be invalid, restricted, or rate-limited. You can use the Instant 1-Click Test Wallet or update the Project ID in Relay Settings.',
       };
     }
 

@@ -121,20 +121,6 @@ export function WalletConnectModal({
 
   if (!isOpen) return null;
 
-  const handleConnectDemo = async () => {
-    setSelectedMobileWallet(null);
-    setPairingUri(null);
-    onClearError();
-    try {
-      const res = await onConnect('demo');
-      if (!res || (typeof res === 'object' && ('success' in res ? (res as any).success : true))) {
-        onClose();
-      }
-    } catch {
-      // Handled by state
-    }
-  };
-
   const handleConnectCustomAddress = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanAddr = customAddressInput.trim();
@@ -382,21 +368,13 @@ export function WalletConnectModal({
               <div className="flex-1">
                 <p className="font-semibold text-rose-200">Connection Notice</p>
                 <p className="mt-0.5 text-rose-200/90 leading-relaxed">{error}</p>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleConnectDemo}
-                    className="px-3 py-1.5 rounded-lg bg-[#20E56B] text-[#0B1026] font-bold text-xs flex items-center gap-1.5 hover:bg-[#1ac95c] transition-colors shadow-sm cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Connect Instant Test Wallet</span>
-                  </button>
+                <div className="mt-2.5 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={onClearError}
-                    className="px-2.5 py-1.5 text-xs text-rose-300 hover:text-white font-medium cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold cursor-pointer border border-rose-500/40"
                   >
-                    Dismiss
+                    Dismiss & Try Again
                   </button>
                 </div>
               </div>
@@ -757,93 +735,12 @@ export function WalletConnectModal({
           ) : (
             /* VIEW 3: WALLET SELECTION LIST */
             <div className="space-y-4">
-              {/* Option 1: 1-Click Instant Test Wallet (Recommended & Fast) */}
+              {/* Option 1: Mobile Wallets & QR Code */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#20E56B] flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Instant 1-Click Test Wallet</span>
-                  </span>
-                  <span className="text-[10px] text-[#20E56B] bg-[#20E56B]/15 px-2 py-0.5 rounded-full font-semibold border border-[#20E56B]/30">
-                    Works in Iframe & Desktop
-                  </span>
-                </div>
-                <button
-                  id="btn-select-demo-wallet"
-                  type="button"
-                  onClick={handleConnectDemo}
-                  disabled={isConnecting}
-                  className="w-full p-4 rounded-xl border-2 border-[#20E56B]/60 bg-gradient-to-r from-[#20E56B]/15 via-[#131A38] to-[#0B1026] hover:border-[#20E56B] hover:from-[#20E56B]/25 flex items-center justify-between text-left transition-all group cursor-pointer shadow-lg shadow-[#20E56B]/5"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#20E56B]/20 text-[#20E56B] border border-[#20E56B]/40 group-hover:scale-105 transition-transform">
-                      <Sparkles className="w-5 h-5 text-[#20E56B]" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>⚡ 1-Click Instant Test Wallet</span>
-                        <span className="text-[9px] text-[#20E56B] bg-[#20E56B]/20 px-1.5 py-0.5 rounded font-mono font-bold">
-                          145 POL · 500 USDT
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-[#A7AEC4] mt-0.5">
-                        Simulates instant payments, receipt confirmations, and balances without installing apps.
-                      </div>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-[#20E56B] group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
-
-              {/* Option 2: Browser Extension (Injected) */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
-                    Browser Extension
-                  </span>
-                  {inIframe && (
-                    <button
-                      type="button"
-                      onClick={handleOpenStandaloneTab}
-                      className="text-[10px] text-[#4D7CFE] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
-                    >
-                      <span>Open in New Tab for Extension</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </button>
-                  )}
-                </div>
-                <button
-                  id="btn-select-injected-wallet"
-                  type="button"
-                  onClick={handleConnectInjected}
-                  disabled={isConnecting}
-                  className="w-full p-3.5 rounded-xl border border-[#242E5E] bg-[#0B1026]/70 hover:bg-[#0B1026] hover:border-[#4D7CFE] flex items-center justify-between text-left transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <WalletBrandIcon id="metamask" size={36} />
-                    <div>
-                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>Browser Extension</span>
-                        {isProviderAvailable && (
-                          <span className="text-[10px] text-[#20E56B] bg-[#20E56B]/15 px-1.5 py-0.2 rounded font-medium">
-                            Detected
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[#A7AEC4]">
-                        MetaMask, Rabby, Coinbase Wallet, Brave Browser
-                      </div>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-[#A7AEC4] group-hover:text-[#4D7CFE] group-hover:translate-x-0.5 transition-all" />
-                </button>
-              </div>
-
-              {/* Option 3: Mobile Wallets & WalletConnect Deep Links */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
-                    Mobile Wallets (WalletConnect v2)
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#20E56B] flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-[#20E56B]" />
+                    <span>Mobile Wallets & QR Code</span>
                   </span>
                   <button
                     type="button"
@@ -924,6 +821,50 @@ export function WalletConnectModal({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Option 2: Browser Extension (Injected) */}
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
+                    Browser Extension
+                  </span>
+                  {inIframe && (
+                    <button
+                      type="button"
+                      onClick={handleOpenStandaloneTab}
+                      className="text-[10px] text-[#4D7CFE] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                    >
+                      <span>Open in New Tab for Extension</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  id="btn-select-injected-wallet"
+                  type="button"
+                  onClick={handleConnectInjected}
+                  disabled={isConnecting}
+                  className="w-full p-3.5 rounded-xl border border-[#242E5E] bg-[#0B1026]/70 hover:bg-[#0B1026] hover:border-[#4D7CFE] flex items-center justify-between text-left transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <WalletBrandIcon id="metamask" size={36} />
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>Browser Extension</span>
+                        {isProviderAvailable && (
+                          <span className="text-[10px] text-[#20E56B] bg-[#20E56B]/15 px-1.5 py-0.2 rounded font-medium">
+                            Detected
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-[#A7AEC4]">
+                        MetaMask, Rabby, Coinbase Wallet, Brave Browser
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-[#A7AEC4] group-hover:text-[#4D7CFE] group-hover:translate-x-0.5 transition-all" />
+                </button>
               </div>
 
               {/* Option 4: Custom Address Input */}

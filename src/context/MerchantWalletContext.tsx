@@ -3,7 +3,6 @@ import { isValidEvmAddress } from '../config/tokens';
 import { 
   connectInjectedWallet, 
   connectWalletConnectSession,
-  connectDemoWallet,
   connectManualWallet,
   abortWalletConnectPairing,
   disconnectWalletConnectSession,
@@ -129,9 +128,7 @@ export function MerchantWalletProvider({ children }: { children: React.ReactNode
 
     try {
       let result: WalletConnectionResult;
-      if (connectorType === 'demo') {
-        result = await connectDemoWallet(options?.customAddress, options?.preferredChainId || 137);
-      } else if (connectorType === 'manual') {
+      if (connectorType === 'manual') {
         result = await connectManualWallet(options?.customAddress || '', options?.preferredChainId || 137);
       } else if (connectorType === 'walletconnect') {
         result = await connectWalletConnectSession({

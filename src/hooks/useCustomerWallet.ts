@@ -5,7 +5,6 @@ import { blockchainService } from '../services/blockchain';
 import { 
   connectInjectedWallet, 
   connectWalletConnectSession,
-  connectDemoWallet,
   connectManualWallet,
   abortWalletConnectPairing,
   disconnectWalletConnectSession,
@@ -120,15 +119,13 @@ export function useCustomerWallet() {
     };
   }, [syncSession]);
 
-  // Connect customer wallet either via Injected Extension, WalletConnect Mobile, or Instant Demo Wallet
+  // Connect customer wallet either via Injected Extension, WalletConnect Mobile, or Manual Address
   const connect = useCallback(async (connectorType: WalletConnectorType = 'injected', options?: ConnectOptions) => {
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
       let result: WalletConnectionResult;
-      if (connectorType === 'demo') {
-        result = await connectDemoWallet(options?.customAddress, options?.preferredChainId || 137);
-      } else if (connectorType === 'manual') {
+      if (connectorType === 'manual') {
         result = await connectManualWallet(options?.customAddress || '', options?.preferredChainId || 137);
       } else if (connectorType === 'walletconnect') {
         result = await connectWalletConnectSession({

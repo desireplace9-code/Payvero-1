@@ -9,8 +9,7 @@ let activeWalletConnectProvider: any = null;
 let walletConnectInitPromise: Promise<any> | null = null;
 let currentPairingAbortController: (() => void) | null = null;
 
-const DEMO_SAVED_SESSION_KEY = 'payvero_active_wallet_session';
-export const DEFAULT_DEMO_WALLET = '0x71C8A31E847be68a8677c7F0dB43D22B82E2C0e8';
+const SAVED_MANUAL_SESSION_KEY = 'payvero_manual_wallet_session';
 
 export function isInjectedAvailable(): boolean {
   if (typeof window === 'undefined') return false;
@@ -27,13 +26,11 @@ export function isWalletConnectConfigured(): boolean {
 }
 
 /**
- * Creates an in-memory simulated EIP-1193 Provider for demo and testing purposes.
- * Emits genuine transaction hashes and simulates instant on-chain settlement.
+ * Creates a standard JSON-RPC provider for read-only EVM address lookup and balance queries.
  */
-export function createDemoProvider(address: string = DEFAULT_DEMO_WALLET, chainId: number = 137): Eip1193Provider {
+export function createReadOnlyRpcProvider(address: string, chainId: number = 137): Eip1193Provider {
   let currentChainId = chainId;
   const currentAddress = address;
-  const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
 
   return {
     accounts: [currentAddress],
@@ -47,91 +44,58 @@ export function createDemoProvider(address: string = DEFAULT_DEMO_WALLET, chainI
           return '0x' + currentChainId.toString(16);
         case 'net_version':
           return currentChainId.toString();
-        case 'wallet_switchEthereumChain': {
-          const chainHex = (params as any)?.[0]?.chainId;
-          if (chainHex) {
-            currentChainId = parseInt(chainHex, 16);
-            listeners['chainChanged']?.forEach((cb) => cb('0x' + currentChainId.toString(16)));
+        case 'eth_getBalance': {
+          try {
+            const rpcUrl = ENV_CONFIG.polygonRpcUrl || 'https://polygon-rpc.com';
+            const res = await fetch(rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'eth_getBalance',
+                params: [currentAddress, 'latest'],
+              }),
+            });
+            const data = await res.json();
+            return data.result || '0x0';
+          } catch {
+            return '0x0';
           }
-          return null;
         }
-        case 'wallet_addEthereumChain':
-          return null;
-        case 'personal_sign':
-        case 'eth_sign':
-          return '0x' + Array.from({ length: 130 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        case 'eth_sendTransaction': {
-          // Generate a valid 66-char hexadecimal transaction hash
-          const randomHex = Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-          return `0x${randomHex}`;
+        case 'eth_call': {
+          try {
+            const rpcUrl = ENV_CONFIG.polygonRpcUrl || 'https://polygon-rpc.com';
+            const res = await fetch(rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 2,
+                method: 'eth_call',
+                params: params,
+              }),
+            });
+            const data = await res.json();
+            return data.result || '0x0';
+          } catch {
+            return '0x0';
+          }
         }
-        case 'eth_getBalance':
-          // Return simulated pre-funded balance ~ 145.5 POL in Wei
-          return '0x7e44b82d334540000';
-        case 'eth_call':
-          // Return simulated ERC20 balance ~ 500 USDT (6 decimals) or 25000 VERSE (18 decimals)
-          return '0x000000000000000000000000000000000000000000000000000000001dcd6500';
         default:
           return null;
       }
     },
-    on: (event: string, handler: (...args: unknown[]) => void) => {
-      if (!listeners[event]) listeners[event] = [];
-      listeners[event].push(handler);
-    },
-    removeListener: (event: string, handler: (...args: unknown[]) => void) => {
-      if (listeners[event]) {
-        listeners[event] = listeners[event].filter((h) => h !== handler);
-      }
-    },
     disconnect: async () => {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem(DEMO_SAVED_SESSION_KEY);
+        localStorage.removeItem(SAVED_MANUAL_SESSION_KEY);
       }
     },
   };
 }
 
 /**
- * 1-Click Instant Test Wallet connection.
- * Instantly connects without needing external browser extensions or cloud relay keys.
- */
-export async function connectDemoWallet(customAddress?: string, chainId: number = 137): Promise<WalletConnectionResult> {
-  const address = (customAddress && isValidEvmAddress(customAddress)) 
-    ? customAddress 
-    : DEFAULT_DEMO_WALLET;
-
-  const provider = createDemoProvider(address, chainId);
-  const session: ConnectedWalletSession = {
-    address,
-    chainId,
-    connectorType: 'demo',
-    provider,
-    walletId: 'demo',
-    walletName: 'Instant Test Wallet',
-    approvedChains: [137, 1, 56],
-    approvedAccounts: [address],
-    supportedAssets: ['POL', 'VERSE', 'USDT', 'USDC'],
-  };
-
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(DEMO_SAVED_SESSION_KEY, JSON.stringify({
-      address,
-      chainId,
-      connectorType: 'demo',
-      walletId: 'demo',
-      walletName: 'Instant Test Wallet',
-    }));
-  }
-
-  return {
-    success: true,
-    session,
-  };
-}
-
-/**
- * Connects a custom or merchant-specified address.
+ * Connects a custom or merchant-specified address directly.
  */
 export async function connectManualWallet(address: string, chainId: number = 137): Promise<WalletConnectionResult> {
   if (!isValidEvmAddress(address)) {
@@ -142,26 +106,26 @@ export async function connectManualWallet(address: string, chainId: number = 137
     };
   }
 
-  const provider = createDemoProvider(address, chainId);
+  const provider = createReadOnlyRpcProvider(address, chainId);
   const session: ConnectedWalletSession = {
     address,
     chainId,
     connectorType: 'manual',
     provider,
     walletId: 'manual',
-    walletName: 'Custom Address',
+    walletName: 'Manual EVM Address',
     approvedChains: [137, 1, 56],
     approvedAccounts: [address],
     supportedAssets: ['POL', 'VERSE', 'USDT', 'USDC'],
   };
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(DEMO_SAVED_SESSION_KEY, JSON.stringify({
+    localStorage.setItem(SAVED_MANUAL_SESSION_KEY, JSON.stringify({
       address,
       chainId,
       connectorType: 'manual',
       walletId: 'manual',
-      walletName: 'Custom Address',
+      walletName: 'Manual EVM Address',
     }));
   }
 
@@ -367,25 +331,92 @@ export function abortWalletConnectPairing(): void {
 }
 
 /**
+ * Universally extracts all approved EVM accounts from provider or session namespaces.
+ */
+export function extractApprovedAccounts(provider: any): string[] {
+  const extracted = new Set<string>();
+
+  // 1. Direct provider.accounts
+  if (Array.isArray(provider?.accounts)) {
+    for (const acc of provider.accounts) {
+      if (typeof acc === 'string' && isValidEvmAddress(acc)) {
+        extracted.add(acc);
+      }
+    }
+  }
+
+  // 2. Check provider.session.namespaces and signer session namespaces
+  const namespacesList = [
+    provider?.session?.namespaces,
+    provider?.signer?.session?.namespaces,
+  ];
+
+  for (const namespaces of namespacesList) {
+    if (namespaces && typeof namespaces === 'object') {
+      for (const key of Object.keys(namespaces)) {
+        const ns = namespaces[key];
+        if (Array.isArray(ns?.accounts)) {
+          for (const fullAcc of ns.accounts) {
+            if (typeof fullAcc === 'string') {
+              const parts = fullAcc.split(':');
+              const addr = parts[parts.length - 1];
+              if (isValidEvmAddress(addr)) {
+                extracted.add(addr);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Active client sessions
+  try {
+    const allSessions = provider?.signer?.client?.session?.getAll?.() || [];
+    for (const s of allSessions) {
+      if (s?.namespaces) {
+        for (const key of Object.keys(s.namespaces)) {
+          const ns = s.namespaces[key];
+          if (Array.isArray(ns?.accounts)) {
+            for (const fullAcc of ns.accounts) {
+              if (typeof fullAcc === 'string') {
+                const parts = fullAcc.split(':');
+                const addr = parts[parts.length - 1];
+                if (isValidEvmAddress(addr)) {
+                  extracted.add(addr);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  return Array.from(extracted);
+}
+
+/**
  * Checks and extracts any already-authenticated active session from the provider or stored session.
  */
 export async function getActiveWalletSession(): Promise<ConnectedWalletSession | null> {
-  // Check stored active session first (for demo or manual connection)
+  // Check stored active manual session first (for custom/manual connection)
   if (typeof window !== 'undefined') {
     try {
-      const savedSession = localStorage.getItem(DEMO_SAVED_SESSION_KEY);
+      const savedSession = localStorage.getItem(SAVED_MANUAL_SESSION_KEY);
       if (savedSession) {
         const parsed = JSON.parse(savedSession);
         if (parsed.address && isValidEvmAddress(parsed.address)) {
           const chainId = parsed.chainId || 137;
-          const connectorType = parsed.connectorType || 'demo';
           return {
             address: parsed.address,
             chainId,
-            connectorType,
-            provider: createDemoProvider(parsed.address, chainId),
-            walletId: parsed.walletId || 'demo',
-            walletName: parsed.walletName || 'Instant Test Wallet',
+            connectorType: 'manual',
+            provider: createReadOnlyRpcProvider(parsed.address, chainId),
+            walletId: 'manual',
+            walletName: 'Manual EVM Address',
             approvedChains: [137, 1, 56],
             approvedAccounts: [parsed.address],
             supportedAssets: ['POL', 'VERSE', 'USDT', 'USDC'],
@@ -399,15 +430,9 @@ export async function getActiveWalletSession(): Promise<ConnectedWalletSession |
 
   if (activeWalletConnectProvider) {
     const provider = activeWalletConnectProvider;
-    let accounts: string[] = (provider.accounts || []) as string[];
-    if ((!accounts || accounts.length === 0) && provider.session?.namespaces?.eip155?.accounts) {
-      accounts = (provider.session.namespaces.eip155.accounts as string[]).map((acc: string) => {
-        const parts = acc.split(':');
-        return parts.length >= 3 ? parts[2] : acc;
-      });
-    }
+    const accounts = extractApprovedAccounts(provider);
 
-    if (accounts && accounts.length > 0 && isValidEvmAddress(accounts[0])) {
+    if (accounts.length > 0 && isValidEvmAddress(accounts[0])) {
       const address = accounts[0];
       let chainId = Number(provider.chainId);
       if (!chainId || isNaN(chainId) || chainId <= 0) {
@@ -427,19 +452,6 @@ export async function getActiveWalletSession(): Promise<ConnectedWalletSession |
       }
       const supportedAssets = extractSupportedAssets(approvedChains);
 
-      let bitcoinAddress: string | null = null;
-      if (provider.session?.namespaces?.bip122?.accounts?.length) {
-        const btcAcc = provider.session.namespaces.bip122.accounts[0];
-        const parts = btcAcc.split(':');
-        const parsedBtc = parts.length >= 3 ? parts[2] : btcAcc;
-        if (isValidBitcoinAddress(parsedBtc)) {
-          bitcoinAddress = parsedBtc;
-          if (!supportedAssets.includes('BTC')) {
-            supportedAssets.push('BTC');
-          }
-        }
-      }
-
       return {
         address,
         chainId,
@@ -447,7 +459,6 @@ export async function getActiveWalletSession(): Promise<ConnectedWalletSession |
         provider: provider as unknown as Eip1193Provider,
         approvedChains,
         approvedAccounts: accounts,
-        bitcoinAddress,
         supportedAssets,
       };
     }
@@ -511,16 +522,14 @@ export async function connectWalletConnectSession(
 
     provider.once('display_uri', uriHandler);
 
-    // Helper to check if session is settled in provider state
+    // Helper to check if session is actually settled with valid accounts
     const isSessionSettled = (): boolean => {
       if (!provider) return false;
-      const hasAccounts = Array.isArray(provider.accounts) && provider.accounts.length > 0 && isValidEvmAddress(provider.accounts[0]);
-      const hasSessionAccounts = Boolean(provider.session?.namespaces?.eip155?.accounts?.length);
-      const hasSignerSession = Boolean(provider.signer?.session?.namespaces?.eip155?.accounts?.length);
-      return Boolean(provider.connected || hasAccounts || hasSessionAccounts || hasSignerSession);
+      const accs = extractApprovedAccounts(provider);
+      return accs.length > 0;
     };
 
-    // Timeout guard (120s) to give user ample time to unlock mobile app and tap Approve
+    // Timeout guard (180s) to give user ample time to switch apps, unlock, and tap Approve
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let pollIntervalId: ReturnType<typeof setInterval> | null = null;
     let manualAbortReject: ((err: Error) => void) | null = null;
@@ -535,7 +544,7 @@ export async function connectWalletConnectSession(
           // Ignore
         }
         reject(new Error('CONNECTION_TIMEOUT'));
-      }, 120000);
+      }, 180000);
     });
 
     currentPairingAbortController = () => {
@@ -553,7 +562,7 @@ export async function connectWalletConnectSession(
     
     // Connect to WalletConnect relay and await session approval
     const connectPromise = provider.connect().catch((err: any) => {
-      // If session is actually established despite rejection/reset, do not fail
+      // If session has accounts despite any transient relay reset, do not fail
       if (isSessionSettled()) {
         return;
       }
@@ -564,32 +573,36 @@ export async function connectWalletConnectSession(
     const sessionEstablishedPromise = new Promise<void>((resolve) => {
       resolveSessionEstablished = resolve;
 
-      const triggerResolve = () => {
-        resolve();
+      const triggerResolveIfValid = () => {
+        if (isSessionSettled()) {
+          resolve();
+        }
       };
 
       // Provider events
-      provider.once('connect', triggerResolve);
-      provider.once('session_update', triggerResolve);
-      provider.once('session_event', triggerResolve);
+      provider.once('connect', triggerResolveIfValid);
+      provider.once('session_update', triggerResolveIfValid);
+      provider.once('session_event', triggerResolveIfValid);
       provider.once('accountsChanged', (accs: any) => {
-        if (Array.isArray(accs) && accs.length > 0) triggerResolve();
+        if (Array.isArray(accs) && accs.length > 0) {
+          resolve();
+        }
       });
 
       // Signer / Client events
       try {
-        provider.signer?.events?.once?.('session_settle', triggerResolve);
-        provider.signer?.events?.once?.('session_update', triggerResolve);
-        provider.signer?.client?.once?.('session_settle', triggerResolve);
-        provider.signer?.client?.once?.('session_connect', triggerResolve);
-        provider.signer?.client?.once?.('session_update', triggerResolve);
+        provider.signer?.events?.once?.('session_settle', triggerResolveIfValid);
+        provider.signer?.events?.once?.('session_update', triggerResolveIfValid);
+        provider.signer?.client?.once?.('session_settle', triggerResolveIfValid);
+        provider.signer?.client?.once?.('session_connect', triggerResolveIfValid);
+        provider.signer?.client?.once?.('session_update', triggerResolveIfValid);
       } catch {
         // Ignore
       }
     });
 
     // Foreground listener: when mobile browser returns to foreground from wallet app,
-    // ensure relay transport is actively running and consuming queued session approvals.
+    // reconnect the transport and check if the wallet approved the connection.
     const handleForegroundResume = () => {
       try {
         if (provider?.signer?.client?.core?.relayer) {
@@ -610,12 +623,12 @@ export async function connectWalletConnectSession(
       window.addEventListener('focus', handleForegroundResume);
     }
 
-    // Polling interval checking session state every 300ms
+    // Polling interval checking account state every 500ms
     pollIntervalId = setInterval(() => {
       if (isSessionSettled() && resolveSessionEstablished) {
         resolveSessionEstablished();
       }
-    }, 300);
+    }, 500);
 
     try {
       await Promise.race([
@@ -640,19 +653,22 @@ export async function connectWalletConnectSession(
     }
 
     // Extract approved accounts from approved session
-    let accounts: string[] = (provider.accounts || []) as string[];
-    if ((!accounts || accounts.length === 0) && provider.session?.namespaces?.eip155?.accounts) {
-      accounts = (provider.session.namespaces.eip155.accounts as string[]).map((acc: string) => {
-        const parts = acc.split(':');
-        return parts.length >= 3 ? parts[2] : acc;
-      });
+    let accounts = extractApprovedAccounts(provider);
+
+    // If accounts is still empty right after connectPromise returns, give relay a 2-second grace period
+    if (accounts.length === 0) {
+      for (let i = 0; i < 5; i++) {
+        await new Promise((r) => setTimeout(r, 400));
+        accounts = extractApprovedAccounts(provider);
+        if (accounts.length > 0) break;
+      }
     }
 
-    if (!accounts || accounts.length === 0) {
+    if (accounts.length === 0) {
       return {
         success: false,
         code: 'NO_ACCOUNTS',
-        error: 'No accounts were returned or approved by the mobile wallet.',
+        error: 'Please unlock your wallet app and tap Approve to connect.',
       };
     }
 
@@ -850,11 +866,12 @@ export async function connectWalletConnectModal(selectedWalletId?: string): Prom
 }
 
 /**
- * Cleanly disconnects and resets any active wallet session (WalletConnect, Demo, or Custom).
+ * Cleanly disconnects and resets any active wallet session (WalletConnect, Injected, or Custom).
  */
 export async function disconnectWalletConnectSession(): Promise<void> {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem(DEMO_SAVED_SESSION_KEY);
+    localStorage.removeItem(SAVED_MANUAL_SESSION_KEY);
+    localStorage.removeItem('payvero_active_wallet_session');
   }
   try {
     if (activeWalletConnectProvider) {

@@ -22,8 +22,11 @@ import {
   Link,
   Unlink,
   ArrowDownRight,
-  RefreshCw
+  RefreshCw,
+  Key,
+  ExternalLink
 } from 'lucide-react';
+import { ENV_CONFIG } from '../config/env';
 
 interface SettingsPageProps {
   onNavigate: (view: AppView) => void;
@@ -46,6 +49,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
   const [walletAddress, setWalletAddress] = useState(merchant.walletAddress);
   const [tronWalletAddress, setTronWalletAddress] = useState(merchant.tronWalletAddress || '');
   const [bitcoinWalletAddress, setBitcoinWalletAddress] = useState(merchant.bitcoinWalletAddress || '');
+  const [wcProjectId, setWcProjectId] = useState(() => ENV_CONFIG.walletConnectProjectId || '');
   const [supportedTokens, setSupportedTokens] = useState<string[]>(() => {
     const raw = merchant.supportedTokens || ['POL', 'USDT', 'VERSE'];
     const mapped = raw.map((t) => {
@@ -131,6 +135,9 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
       return;
     }
 
+    // Save WalletConnect / Reown Project ID
+    ENV_CONFIG.setWalletConnectProjectId(wcProjectId.trim());
+
     const res = updateMerchant({
       name: name.trim(),
       walletAddress: walletAddress.trim(),
@@ -145,7 +152,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
     });
 
     if (res.success) {
-      setFeedback({ type: 'success', message: 'Merchant gateway settings saved successfully.' });
+      setFeedback({ type: 'success', message: 'Merchant gateway & Web3 settings saved successfully.' });
       setTimeout(() => setFeedback(null), 4000);
     } else {
       setFeedback({ type: 'error', message: res.error || 'Failed to update settings.' });
@@ -158,6 +165,8 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
     setWalletAddress('');
     setTronWalletAddress('');
     setBitcoinWalletAddress('');
+    setWcProjectId('');
+    ENV_CONFIG.setWalletConnectProjectId('');
     setSupportedTokens(['POL', 'USDT', 'VERSE']);
     setDefaultToken('POL');
     setEmail('finance@acmedigital.io');
@@ -524,7 +533,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
           </div>
         </div>
 
-        {/* Section 4: Webhooks & Integrations */}
+        {/* Section 4: Webhooks & Notifications */}
         <div className="bg-[#131A38] border border-[#242E5E] rounded-2xl p-6 space-y-5">
           <div className="flex items-center gap-2.5 pb-4 border-b border-[#242E5E]">
             <Bell className="w-5 h-5 text-purple-400" />
@@ -561,6 +570,59 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
             <label htmlFor="checkbox-require-ref" className="text-xs text-[#A7AEC4] cursor-pointer">
               Always require a Customer Reference / Order ID for all generated checkout requests
             </label>
+          </div>
+        </div>
+
+        {/* Section 5: Web3 Relay & WalletConnect Infrastructure */}
+        <div className="bg-[#131A38] border border-[#242E5E] rounded-2xl p-6 space-y-5">
+          <div className="flex items-center justify-between pb-4 border-b border-[#242E5E]">
+            <div className="flex items-center gap-2.5">
+              <Key className="w-5 h-5 text-[#4D7CFE]" />
+              <div>
+                <h2 className="text-sm font-bold text-white">Web3 & WalletConnect Infrastructure</h2>
+                <p className="text-xs text-[#A7AEC4]">
+                  Configure your Reown Cloud relay key for mobile QR code and deep link connections.
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://cloud.reown.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[#4D7CFE] hover:underline flex items-center gap-1 font-semibold"
+            >
+              <span>Get Free Key</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-[#A7AEC4] uppercase tracking-wider">
+                Reown / WalletConnect Project ID
+              </label>
+              {wcProjectId.trim() ? (
+                <span className="text-[10px] bg-[#20E56B]/20 text-[#20E56B] border border-[#20E56B]/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Configured
+                </span>
+              ) : (
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">
+                  Not Configured
+                </span>
+              )}
+            </div>
+            <input
+              id="input-merchant-wc-project-id"
+              type="text"
+              value={wcProjectId}
+              onChange={(e) => setWcProjectId(e.target.value)}
+              placeholder="e.g. 32-character Project ID from cloud.reown.com"
+              className="w-full bg-[#0B1026] text-white font-mono text-xs rounded-xl px-4 py-2.5 border border-[#242E5E] focus:outline-none focus:border-[#4D7CFE]"
+            />
+            <p className="text-[11px] text-[#A7AEC4] mt-1.5 leading-relaxed">
+              Required for real-time relay pairing with Bitcoin.com Wallet, Trust Wallet, and MetaMask Mobile. For permanent Vercel deployment, also set <code className="text-white bg-[#0B1026] px-1 py-0.5 rounded font-mono">VITE_WALLETCONNECT_PROJECT_ID</code> in Vercel Environment Variables.
+            </p>
           </div>
         </div>
 

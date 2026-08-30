@@ -96,6 +96,8 @@ export function WalletConnectModal({
   const [showProjectIdSetup, setShowProjectIdSetup] = useState(false);
   const [projectIdInput, setProjectIdInput] = useState('');
   const [projectIdSavedMsg, setProjectIdSavedMsg] = useState(false);
+  const [showCustomAddress, setShowCustomAddress] = useState(false);
+  const [customAddressInput, setCustomAddressInput] = useState('');
 
   // Check if WalletConnect is configured (via env or localStorage)
   const isConfigured = checkWcConfigured();
@@ -110,12 +112,43 @@ export function WalletConnectModal({
       setIsDisconnecting(false);
       setShowProjectIdSetup(false);
       setProjectIdSavedMsg(false);
+      setShowCustomAddress(false);
+      setCustomAddressInput('');
     } else {
       setProjectIdInput(ENV_CONFIG.walletConnectProjectId || '');
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleConnectDemo = async () => {
+    setSelectedMobileWallet(null);
+    setPairingUri(null);
+    onClearError();
+    try {
+      const res = await onConnect('demo');
+      if (!res || (typeof res === 'object' && ('success' in res ? (res as any).success : true))) {
+        onClose();
+      }
+    } catch {
+      // Handled by state
+    }
+  };
+
+  const handleConnectCustomAddress = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanAddr = customAddressInput.trim();
+    if (!cleanAddr) return;
+    onClearError();
+    try {
+      const res = await onConnect('manual', { customAddress: cleanAddr });
+      if (!res || (typeof res === 'object' && ('success' in res ? (res as any).success : true))) {
+        onClose();
+      }
+    } catch {
+      // Handled by state
+    }
+  };
 
   const handleConnectInjected = async () => {
     setSelectedMobileWallet(null);
@@ -349,13 +382,23 @@ export function WalletConnectModal({
               <div className="flex-1">
                 <p className="font-semibold text-rose-200">Connection Notice</p>
                 <p className="mt-0.5 text-rose-200/90 leading-relaxed">{error}</p>
-                <button
-                  type="button"
-                  onClick={onClearError}
-                  className="mt-2 underline text-xs text-rose-300 hover:text-white font-medium cursor-pointer"
-                >
-                  Dismiss
-                </button>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleConnectDemo}
+                    className="px-3 py-1.5 rounded-lg bg-[#20E56B] text-[#0B1026] font-bold text-xs flex items-center gap-1.5 hover:bg-[#1ac95c] transition-colors shadow-sm cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Connect Instant Test Wallet</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClearError}
+                    className="px-2.5 py-1.5 text-xs text-rose-300 hover:text-white font-medium cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -714,10 +757,60 @@ export function WalletConnectModal({
           ) : (
             /* VIEW 3: WALLET SELECTION LIST */
             <div className="space-y-4">
-              {/* Option A: Browser Extension (Injected) */}
+              {/* Option 1: 1-Click Instant Test Wallet (Recommended & Fast) */}
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4] mb-2">
-                  Browser Extension
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#20E56B] flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Instant 1-Click Test Wallet</span>
+                  </span>
+                  <span className="text-[10px] text-[#20E56B] bg-[#20E56B]/15 px-2 py-0.5 rounded-full font-semibold border border-[#20E56B]/30">
+                    Works in Iframe & Desktop
+                  </span>
+                </div>
+                <button
+                  id="btn-select-demo-wallet"
+                  type="button"
+                  onClick={handleConnectDemo}
+                  disabled={isConnecting}
+                  className="w-full p-4 rounded-xl border-2 border-[#20E56B]/60 bg-gradient-to-r from-[#20E56B]/15 via-[#131A38] to-[#0B1026] hover:border-[#20E56B] hover:from-[#20E56B]/25 flex items-center justify-between text-left transition-all group cursor-pointer shadow-lg shadow-[#20E56B]/5"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-[#20E56B]/20 text-[#20E56B] border border-[#20E56B]/40 group-hover:scale-105 transition-transform">
+                      <Sparkles className="w-5 h-5 text-[#20E56B]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>⚡ 1-Click Instant Test Wallet</span>
+                        <span className="text-[9px] text-[#20E56B] bg-[#20E56B]/20 px-1.5 py-0.5 rounded font-mono font-bold">
+                          145 POL · 500 USDT
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-[#A7AEC4] mt-0.5">
+                        Simulates instant payments, receipt confirmations, and balances without installing apps.
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-[#20E56B] group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+
+              {/* Option 2: Browser Extension (Injected) */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
+                    Browser Extension
+                  </span>
+                  {inIframe && (
+                    <button
+                      type="button"
+                      onClick={handleOpenStandaloneTab}
+                      className="text-[10px] text-[#4D7CFE] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                    >
+                      <span>Open in New Tab for Extension</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
                 </div>
                 <button
                   id="btn-select-injected-wallet"
@@ -746,16 +839,63 @@ export function WalletConnectModal({
                 </button>
               </div>
 
-              {/* Option B: Mobile Wallets & WalletConnect Deep Links */}
+              {/* Option 3: Mobile Wallets & WalletConnect Deep Links */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
-                    Mobile Wallets & Instant Connect
+                    Mobile Wallets (WalletConnect v2)
                   </span>
-                  <span className="text-[10px] text-[#20E56B] font-mono font-medium">
-                    1-Tap Launch
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowProjectIdSetup((prev) => !prev)}
+                    className="text-[10px] text-[#A7AEC4] hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <Settings className="w-3 h-3" />
+                    <span>{showProjectIdSetup ? 'Hide Project ID' : 'Relay Settings'}</span>
+                  </button>
                 </div>
+
+                {/* Project ID Settings dropdown */}
+                {showProjectIdSetup && (
+                  <div className="mb-3 p-3.5 bg-[#0B1026] rounded-xl border border-[#242E5E] text-xs space-y-2.5 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Reown Project ID</span>
+                      </span>
+                      <a
+                        href="https://cloud.reown.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-[#4D7CFE] hover:underline flex items-center gap-0.5"
+                      >
+                        <span>Get Free ID</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                    <form onSubmit={handleSaveProjectId} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={projectIdInput}
+                        onChange={(e) => setProjectIdInput(e.target.value)}
+                        placeholder="Paste Reown Project ID..."
+                        className="flex-1 px-3 py-1.5 bg-[#131A38] border border-[#242E5E] rounded-lg text-xs text-white placeholder-[#A7AEC4]/50 focus:outline-none focus:border-[#4D7CFE]"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 bg-[#4D7CFE] hover:bg-[#3b6ae8] text-white rounded-lg text-xs font-semibold cursor-pointer"
+                      >
+                        Save
+                      </button>
+                    </form>
+                    {projectIdSavedMsg && (
+                      <p className="text-[11px] text-[#20E56B] flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        <span>Project ID updated!</span>
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SUPPORTED_MOBILE_WALLETS.map((wallet) => {
@@ -786,18 +926,45 @@ export function WalletConnectModal({
                 </div>
               </div>
 
-              {/* Info Callout */}
-              {!isProviderAvailable && !isWalletConnectConfigured && (
-                <div className="p-3.5 bg-[#0B1026] rounded-xl border border-[#242E5E] text-xs text-[#A7AEC4] space-y-1.5">
-                  <p className="font-semibold text-white flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#20E56B]" />
-                    <span>Wallet Connection Setup</span>
-                  </p>
-                  <p className="text-[11px] leading-relaxed">
-                    Configure <code className="text-white bg-[#131A38] px-1 py-0.5 rounded">VITE_WALLETCONNECT_PROJECT_ID</code> in your environment variables for live relay pairing with Bitcoin.com Wallet, Trust Wallet, and MetaMask Mobile.
-                  </p>
+              {/* Option 4: Custom Address Input */}
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
+                    Custom Address
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomAddress((prev) => !prev)}
+                    className="text-[10px] text-[#4D7CFE] hover:underline cursor-pointer"
+                  >
+                    {showCustomAddress ? 'Cancel' : 'Enter Address Manually'}
+                  </button>
                 </div>
-              )}
+
+                {showCustomAddress && (
+                  <form onSubmit={handleConnectCustomAddress} className="p-3.5 bg-[#0B1026] rounded-xl border border-[#242E5E] space-y-2.5 animate-in fade-in duration-150">
+                    <p className="text-[11px] text-[#A7AEC4]">
+                      Connect any public EVM wallet address (Polygon/Ethereum/BNB):
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customAddressInput}
+                        onChange={(e) => setCustomAddressInput(e.target.value)}
+                        placeholder="0x..."
+                        className="flex-1 px-3 py-2 bg-[#131A38] border border-[#242E5E] rounded-lg text-xs text-white placeholder-[#A7AEC4]/50 focus:outline-none focus:border-[#20E56B] font-mono"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!customAddressInput.trim()}
+                        className="px-4 py-2 bg-[#20E56B] hover:bg-[#1ac95c] text-[#0B1026] rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        Connect
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             </div>
           )}
         </div>

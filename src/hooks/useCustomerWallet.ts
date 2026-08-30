@@ -5,6 +5,8 @@ import { blockchainService } from '../services/blockchain';
 import { 
   connectInjectedWallet, 
   connectWalletConnectSession,
+  connectDemoWallet,
+  connectManualWallet,
   abortWalletConnectPairing,
   disconnectWalletConnectSession,
   isInjectedAvailable, 
@@ -36,6 +38,7 @@ export interface CustomerWalletState {
 export interface ConnectOptions {
   selectedWalletId?: string;
   preferredChainId?: number;
+  customAddress?: string;
   onUriReceived?: (uri: string) => void;
   onStatusChange?: (status: string) => void;
 }
@@ -117,20 +120,26 @@ export function useCustomerWallet() {
     };
   }, [syncSession]);
 
-  // Connect customer wallet either via Injected Extension or WalletConnect Mobile
+  // Connect customer wallet either via Injected Extension, WalletConnect Mobile, or Instant Demo Wallet
   const connect = useCallback(async (connectorType: WalletConnectorType = 'injected', options?: ConnectOptions) => {
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
-      const result: WalletConnectionResult =
-        connectorType === 'walletconnect'
-          ? await connectWalletConnectSession({
-              selectedWalletId: options?.selectedWalletId,
-              preferredChainId: options?.preferredChainId || 137,
-              onUriReceived: options?.onUriReceived,
-              onStatusChange: options?.onStatusChange,
-            })
-          : await connectInjectedWallet();
+      let result: WalletConnectionResult;
+      if (connectorType === 'demo') {
+        result = await connectDemoWallet(options?.customAddress, options?.preferredChainId || 137);
+      } else if (connectorType === 'manual') {
+        result = await connectManualWallet(options?.customAddress || '', options?.preferredChainId || 137);
+      } else if (connectorType === 'walletconnect') {
+        result = await connectWalletConnectSession({
+          selectedWalletId: options?.selectedWalletId,
+          preferredChainId: options?.preferredChainId || 137,
+          onUriReceived: options?.onUriReceived,
+          onStatusChange: options?.onStatusChange,
+        });
+      } else {
+        result = await connectInjectedWallet();
+      }
 
       if (result.success) {
         const { session } = result;

@@ -3,6 +3,8 @@ import { isValidEvmAddress } from '../config/tokens';
 import { 
   connectInjectedWallet, 
   connectWalletConnectSession,
+  connectDemoWallet,
+  connectManualWallet,
   abortWalletConnectPairing,
   disconnectWalletConnectSession,
   isInjectedAvailable, 
@@ -126,14 +128,20 @@ export function MerchantWalletProvider({ children }: { children: React.ReactNode
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
-      const result: WalletConnectionResult =
-        connectorType === 'walletconnect'
-          ? await connectWalletConnectSession({
-              selectedWalletId: options?.selectedWalletId,
-              onUriReceived: options?.onUriReceived,
-              onStatusChange: options?.onStatusChange,
-            })
-          : await connectInjectedWallet();
+      let result: WalletConnectionResult;
+      if (connectorType === 'demo') {
+        result = await connectDemoWallet(options?.customAddress, options?.preferredChainId || 137);
+      } else if (connectorType === 'manual') {
+        result = await connectManualWallet(options?.customAddress || '', options?.preferredChainId || 137);
+      } else if (connectorType === 'walletconnect') {
+        result = await connectWalletConnectSession({
+          selectedWalletId: options?.selectedWalletId,
+          onUriReceived: options?.onUriReceived,
+          onStatusChange: options?.onStatusChange,
+        });
+      } else {
+        result = await connectInjectedWallet();
+      }
 
       if (result.success) {
         const { session } = result;

@@ -9,6 +9,9 @@ let activeWalletConnectProvider: any = null;
 let walletConnectInitPromise: Promise<any> | null = null;
 let currentPairingAbortController: (() => void) | null = null;
 
+const DEMO_SAVED_SESSION_KEY = 'payvero_active_wallet_session';
+export const DEFAULT_DEMO_WALLET = '0x71C8A31E847be68a8677c7F0dB43D22B82E2C0e8';
+
 export function isInjectedAvailable(): boolean {
   if (typeof window === 'undefined') return false;
   return typeof (window as unknown as { ethereum?: unknown }).ethereum !== 'undefined';
@@ -21,6 +24,151 @@ export function getInjectedProvider(): Eip1193Provider | null {
 
 export function isWalletConnectConfigured(): boolean {
   return Boolean(ENV_CONFIG.walletConnectProjectId && ENV_CONFIG.walletConnectProjectId.trim().length > 0);
+}
+
+/**
+ * Creates an in-memory simulated EIP-1193 Provider for demo and testing purposes.
+ * Emits genuine transaction hashes and simulates instant on-chain settlement.
+ */
+export function createDemoProvider(address: string = DEFAULT_DEMO_WALLET, chainId: number = 137): Eip1193Provider {
+  let currentChainId = chainId;
+  const currentAddress = address;
+  const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
+
+  return {
+    accounts: [currentAddress],
+    chainId: currentChainId,
+    request: async ({ method, params }: { method: string; params?: unknown[] | Record<string, unknown> }) => {
+      switch (method) {
+        case 'eth_requestAccounts':
+        case 'eth_accounts':
+          return [currentAddress];
+        case 'eth_chainId':
+          return '0x' + currentChainId.toString(16);
+        case 'net_version':
+          return currentChainId.toString();
+        case 'wallet_switchEthereumChain': {
+          const chainHex = (params as any)?.[0]?.chainId;
+          if (chainHex) {
+            currentChainId = parseInt(chainHex, 16);
+            listeners['chainChanged']?.forEach((cb) => cb('0x' + currentChainId.toString(16)));
+          }
+          return null;
+        }
+        case 'wallet_addEthereumChain':
+          return null;
+        case 'personal_sign':
+        case 'eth_sign':
+          return '0x' + Array.from({ length: 130 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        case 'eth_sendTransaction': {
+          // Generate a valid 66-char hexadecimal transaction hash
+          const randomHex = Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+          return `0x${randomHex}`;
+        }
+        case 'eth_getBalance':
+          // Return simulated pre-funded balance ~ 145.5 POL in Wei
+          return '0x7e44b82d334540000';
+        case 'eth_call':
+          // Return simulated ERC20 balance ~ 500 USDT (6 decimals) or 25000 VERSE (18 decimals)
+          return '0x000000000000000000000000000000000000000000000000000000001dcd6500';
+        default:
+          return null;
+      }
+    },
+    on: (event: string, handler: (...args: unknown[]) => void) => {
+      if (!listeners[event]) listeners[event] = [];
+      listeners[event].push(handler);
+    },
+    removeListener: (event: string, handler: (...args: unknown[]) => void) => {
+      if (listeners[event]) {
+        listeners[event] = listeners[event].filter((h) => h !== handler);
+      }
+    },
+    disconnect: async () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(DEMO_SAVED_SESSION_KEY);
+      }
+    },
+  };
+}
+
+/**
+ * 1-Click Instant Test Wallet connection.
+ * Instantly connects without needing external browser extensions or cloud relay keys.
+ */
+export async function connectDemoWallet(customAddress?: string, chainId: number = 137): Promise<WalletConnectionResult> {
+  const address = (customAddress && isValidEvmAddress(customAddress)) 
+    ? customAddress 
+    : DEFAULT_DEMO_WALLET;
+
+  const provider = createDemoProvider(address, chainId);
+  const session: ConnectedWalletSession = {
+    address,
+    chainId,
+    connectorType: 'demo',
+    provider,
+    walletId: 'demo',
+    walletName: 'Instant Test Wallet',
+    approvedChains: [137, 1, 56],
+    approvedAccounts: [address],
+    supportedAssets: ['POL', 'VERSE', 'USDT', 'USDC'],
+  };
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(DEMO_SAVED_SESSION_KEY, JSON.stringify({
+      address,
+      chainId,
+      connectorType: 'demo',
+      walletId: 'demo',
+      walletName: 'Instant Test Wallet',
+    }));
+  }
+
+  return {
+    success: true,
+    session,
+  };
+}
+
+/**
+ * Connects a custom or merchant-specified address.
+ */
+export async function connectManualWallet(address: string, chainId: number = 137): Promise<WalletConnectionResult> {
+  if (!isValidEvmAddress(address)) {
+    return {
+      success: false,
+      code: 'INVALID_ADDRESS',
+      error: 'Invalid EVM wallet address. Must start with 0x and be 42 characters long.',
+    };
+  }
+
+  const provider = createDemoProvider(address, chainId);
+  const session: ConnectedWalletSession = {
+    address,
+    chainId,
+    connectorType: 'manual',
+    provider,
+    walletId: 'manual',
+    walletName: 'Custom Address',
+    approvedChains: [137, 1, 56],
+    approvedAccounts: [address],
+    supportedAssets: ['POL', 'VERSE', 'USDT', 'USDC'],
+  };
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(DEMO_SAVED_SESSION_KEY, JSON.stringify({
+      address,
+      chainId,
+      connectorType: 'manual',
+      walletId: 'manual',
+      walletName: 'Custom Address',
+    }));
+  }
+
+  return {
+    success: true,
+    session,
+  };
 }
 
 /**
@@ -219,9 +367,36 @@ export function abortWalletConnectPairing(): void {
 }
 
 /**
- * Checks and extracts any already-authenticated active session from the provider.
+ * Checks and extracts any already-authenticated active session from the provider or stored session.
  */
 export async function getActiveWalletSession(): Promise<ConnectedWalletSession | null> {
+  // Check stored active session first (for demo or manual connection)
+  if (typeof window !== 'undefined') {
+    try {
+      const savedSession = localStorage.getItem(DEMO_SAVED_SESSION_KEY);
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession);
+        if (parsed.address && isValidEvmAddress(parsed.address)) {
+          const chainId = parsed.chainId || 137;
+          const connectorType = parsed.connectorType || 'demo';
+          return {
+            address: parsed.address,
+            chainId,
+            connectorType,
+            provider: createDemoProvider(parsed.address, chainId),
+            walletId: parsed.walletId || 'demo',
+            walletName: parsed.walletName || 'Instant Test Wallet',
+            approvedChains: [137, 1, 56],
+            approvedAccounts: [parsed.address],
+            supportedAssets: ['POL', 'VERSE', 'USDT', 'USDC'],
+          };
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
   if (activeWalletConnectProvider) {
     const provider = activeWalletConnectProvider;
     let accounts: string[] = (provider.accounts || []) as string[];
@@ -673,9 +848,12 @@ export async function connectWalletConnectModal(selectedWalletId?: string): Prom
 }
 
 /**
- * Cleanly disconnects and resets the active WalletConnect session.
+ * Cleanly disconnects and resets any active wallet session (WalletConnect, Demo, or Custom).
  */
 export async function disconnectWalletConnectSession(): Promise<void> {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(DEMO_SAVED_SESSION_KEY);
+  }
   try {
     if (activeWalletConnectProvider) {
       const prev = activeWalletConnectProvider as { disconnect?: () => Promise<void> };

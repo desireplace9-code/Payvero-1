@@ -1,4 +1,4 @@
-export type WalletConnectorType = 'injected' | 'walletconnect';
+export type WalletConnectorType = 'injected' | 'walletconnect' | 'demo' | 'manual';
 
 export type WalletConnectionResult =
   | { success: true; session: ConnectedWalletSession }

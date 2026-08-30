@@ -1,5 +1,6 @@
 import { AppView } from '../components/Navbar';
 import { RevenueCards } from '../components/RevenueCards';
+import { TransactionSummaryChart } from '../components/TransactionSummaryChart';
 import { TransactionTable } from '../components/TransactionTable';
 import { AddressDisplay } from '../components/AddressDisplay';
 import { CopyButton } from '../components/CopyButton';
@@ -139,6 +140,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       {/* Revenue Summary Metric Cards & Strict Token Breakdown */}
       <RevenueCards
         summary={summary}
+        onCreatePaymentClick={() => onNavigate('create-payment')}
+      />
+
+      {/* 30-Day Payment Volume & Activity Summary Chart */}
+      <TransactionSummaryChart
+        payments={payments}
+        onSelectPayment={(id) => onNavigate('tx-details', id)}
         onCreatePaymentClick={() => onNavigate('create-payment')}
       />
 

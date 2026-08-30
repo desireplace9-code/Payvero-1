@@ -750,83 +750,12 @@ export function WalletConnectModal({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
-                    Mobile Apps & Deep Links
+                    Mobile Wallets & Instant Connect
                   </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowProjectIdSetup((prev) => !prev)}
-                      className="text-[10px] text-[#4D7CFE] hover:underline flex items-center gap-1 font-mono cursor-pointer"
-                    >
-                      <Key className="w-3 h-3" />
-                      <span>{isConfigured ? 'Change Project ID' : 'Set Project ID'}</span>
-                    </button>
-                    <span className="text-[10px] text-[#20E56B] font-mono font-medium">
-                      1-Tap Launch
-                    </span>
-                  </div>
+                  <span className="text-[10px] text-[#20E56B] font-mono font-medium">
+                    1-Tap Launch
+                  </span>
                 </div>
-
-                {/* Project ID Inline Configuration Box */}
-                {(showProjectIdSetup || !isConfigured) && (
-                  <div className="mb-3 p-4 bg-[#0B1026] rounded-xl border border-[#4D7CFE]/40 space-y-3 animate-in fade-in duration-200">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Key className="w-4 h-4 text-[#4D7CFE]" />
-                        <span className="text-xs font-bold text-white">Reown / WalletConnect Project ID</span>
-                      </div>
-                      <a
-                        href="https://cloud.reown.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] text-[#4D7CFE] hover:underline inline-flex items-center gap-1 font-semibold"
-                      >
-                        <span>Get Free Key</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-
-                    <p className="text-[11px] text-[#A7AEC4] leading-relaxed">
-                      Mobile wallet pairing (Bitcoin.com, Trust Wallet, MetaMask Mobile) requires a free Project ID from Reown Cloud to relay QR codes and deep links.
-                    </p>
-
-                    <form onSubmit={handleSaveProjectId} className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          id="input-walletconnect-project-id"
-                          type="text"
-                          value={projectIdInput}
-                          onChange={(e) => setProjectIdInput(e.target.value)}
-                          placeholder="Paste 32-character Project ID..."
-                          className="flex-1 px-3 py-2 bg-[#131A38] border border-[#242E5E] focus:border-[#4D7CFE] rounded-xl text-xs text-white font-mono placeholder:text-[#A7AEC4]/50 focus:outline-none"
-                        />
-                        <button
-                          id="btn-save-project-id"
-                          type="submit"
-                          disabled={!projectIdInput.trim()}
-                          className="px-4 py-2 bg-[#4D7CFE] hover:bg-[#3d6de0] disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
-                        >
-                          Save
-                        </button>
-                      </div>
-
-                      {projectIdSavedMsg && (
-                        <div className="text-xs text-[#20E56B] flex items-center gap-1 pt-0.5">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Project ID saved! You can now tap any mobile wallet below.</span>
-                        </div>
-                      )}
-                    </form>
-
-                    {/* Vercel Deployment Note */}
-                    <div className="pt-2 border-t border-[#242E5E]/60 text-[10px] text-[#A7AEC4] space-y-1">
-                      <p className="font-semibold text-white/90">For permanent Vercel deployment:</p>
-                      <p>
-                        Add <code className="text-[#20E56B] bg-[#131A38] px-1 py-0.5 rounded font-mono">VITE_WALLETCONNECT_PROJECT_ID</code> to your <strong>Vercel Dashboard &gt; Settings &gt; Environment Variables</strong>, then redeploy.
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SUPPORTED_MOBILE_WALLETS.map((wallet) => {

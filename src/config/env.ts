@@ -1,3 +1,5 @@
+export const DEFAULT_WALLETCONNECT_PROJECT_ID = '3a8170812b534d0ff9d794f15691064f';
+
 export const ENV_CONFIG = {
   appName: 'Payvero',
   tagline: 'Simple Crypto Payments',
@@ -11,7 +13,11 @@ export const ENV_CONFIG = {
       }
     }
     const raw = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
-    return typeof raw === 'string' ? raw.trim() : '';
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      return raw.trim();
+    }
+    // Universal default built-in relay key so neither merchants nor customers need to register or configure anything
+    return DEFAULT_WALLETCONNECT_PROJECT_ID;
   },
   setWalletConnectProjectId(id: string): void {
     if (typeof window !== 'undefined') {

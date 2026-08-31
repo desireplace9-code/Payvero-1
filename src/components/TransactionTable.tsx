@@ -4,7 +4,8 @@ import { StatusBadge } from './StatusBadge';
 import { TokenBadge } from './TokenBadge';
 import { AddressDisplay } from './AddressDisplay';
 import { formatTokenAmount } from '../config/tokens';
-import { Search, ArrowUpDown, Eye, Filter, Globe } from 'lucide-react';
+import { downloadPaymentsCsv } from '../utils/exportCsv';
+import { Search, ArrowUpDown, Eye, Filter, Globe, Download } from 'lucide-react';
 
 interface TransactionTableProps {
   payments: Payment[];
@@ -47,6 +48,10 @@ export function TransactionTable({ payments, onSelectPayment, onNewPaymentClick 
       });
   }, [payments, selectedToken, selectedStatus, searchTerm, sortOrder]);
 
+  const handleExportFilteredCsv = () => {
+    downloadPaymentsCsv(filteredPayments, 'payvero_transactions_filtered');
+  };
+
   return (
     <div className="bg-[#131A38] border border-[#242E5E] rounded-xl overflow-hidden shadow-lg" id="transactions-section">
       {/* Table Header & Controls */}
@@ -82,7 +87,7 @@ export function TransactionTable({ payments, onSelectPayment, onNewPaymentClick 
                 id={`filter-token-${tok.toLowerCase()}`}
                 type="button"
                 onClick={() => setSelectedToken(tok)}
-                className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
+                className={`px-2 py-1 text-xs rounded font-medium transition-colors cursor-pointer ${
                   selectedToken === tok
                     ? 'bg-[#4D7CFE] text-white'
                     : 'text-[#A7AEC4] hover:text-white'
@@ -98,7 +103,7 @@ export function TransactionTable({ payments, onSelectPayment, onNewPaymentClick 
             id="filter-status-select"
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-[#0B1026] text-white text-xs rounded-lg px-3 py-2 border border-[#242E5E] focus:outline-none focus:border-[#4D7CFE]"
+            className="bg-[#0B1026] text-white text-xs rounded-lg px-3 py-2 border border-[#242E5E] focus:outline-none focus:border-[#4D7CFE] cursor-pointer"
           >
             <option value="ALL">All Statuses</option>
             <option value="confirmed">Confirmed</option>
@@ -111,10 +116,22 @@ export function TransactionTable({ payments, onSelectPayment, onNewPaymentClick 
             id="btn-sort-toggle"
             type="button"
             onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
-            className="p-2 bg-[#0B1026] text-[#A7AEC4] hover:text-white rounded-lg border border-[#242E5E] hover:border-[#4D7CFE] transition-colors"
+            className="p-2 bg-[#0B1026] text-[#A7AEC4] hover:text-white rounded-lg border border-[#242E5E] hover:border-[#4D7CFE] transition-colors cursor-pointer"
             title={`Sort Date: ${sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}`}
           >
             <ArrowUpDown className="w-4 h-4" />
+          </button>
+
+          {/* Export CSV button in table header */}
+          <button
+            id="btn-export-table-csv"
+            type="button"
+            onClick={handleExportFilteredCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-[#0B1026] text-[#20E56B] hover:bg-[#151e44] hover:text-white border border-[#242E5E] hover:border-[#20E56B]/50 transition-colors cursor-pointer"
+            title="Download visible transaction records as CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Export CSV</span>
           </button>
         </div>
       </div>

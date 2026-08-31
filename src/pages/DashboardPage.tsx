@@ -8,7 +8,8 @@ import { shortenAddress } from '../config/tokens';
 import { usePayments } from '../hooks/usePayments';
 import { useMerchant } from '../hooks/useMerchant';
 import { useMerchantWallet } from '../hooks/useMerchantWallet';
-import { PlusCircle, RefreshCw, ShieldCheck, Wallet, ArrowUpRight, AlertCircle } from 'lucide-react';
+import { downloadPaymentsCsv } from '../utils/exportCsv';
+import { PlusCircle, RefreshCw, ShieldCheck, Wallet, ArrowUpRight, AlertCircle, Download } from 'lucide-react';
 
 interface DashboardPageProps {
   onNavigate: (view: AppView, param?: string) => void;
@@ -25,6 +26,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   } = useMerchantWallet();
 
   const activeReceivingAddress = isMerchantConnected && merchantConnectedAddress ? merchantConnectedAddress : '';
+
+  const handleExportCsv = () => {
+    downloadPaymentsCsv(payments, `payvero_${merchant.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_transactions`);
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8" id="dashboard-page">
@@ -48,7 +53,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             id="btn-refresh-dashboard"
             type="button"
             onClick={refresh}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#131A38] text-[#A7AEC4] hover:text-white border border-[#242E5E] hover:border-[#4D7CFE] transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#131A38] text-[#A7AEC4] hover:text-white border border-[#242E5E] hover:border-[#4D7CFE] transition-colors cursor-pointer"
             title="Refresh transaction data from local store"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -56,10 +61,21 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           </button>
 
           <button
+            id="btn-download-csv-dashboard"
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#131A38] text-[#20E56B] hover:bg-[#18224a] hover:text-white border border-[#242E5E] hover:border-[#20E56B]/50 transition-colors cursor-pointer shadow-sm"
+            title={`Export ${payments.length} transaction log records to CSV for accounting`}
+          >
+            <Download className="w-3.5 h-3.5 text-[#20E56B]" />
+            <span>Download CSV</span>
+          </button>
+
+          <button
             id="btn-dashboard-settings"
             type="button"
             onClick={() => onNavigate('settings')}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#131A38] text-white border border-[#242E5E] hover:border-[#4D7CFE] transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#131A38] text-white border border-[#242E5E] hover:border-[#4D7CFE] transition-colors cursor-pointer"
           >
             <span>Gateway Settings</span>
           </button>
@@ -68,7 +84,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             id="btn-dashboard-new-payment"
             type="button"
             onClick={() => onNavigate('create-payment')}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-[#20E56B] text-[#0B1026] hover:bg-[#1ac95c] transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-[#20E56B] text-[#0B1026] hover:bg-[#1ac95c] transition-colors shadow-sm cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Create Payment</span>

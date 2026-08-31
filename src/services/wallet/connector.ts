@@ -322,10 +322,17 @@ export function abortWalletConnectPairing(): void {
 
   if (activeWalletConnectProvider) {
     try {
-      const p = activeWalletConnectProvider as { signer?: { abortPairingAttempt?: () => void } };
+      const p = activeWalletConnectProvider as { signer?: { abortPairingAttempt?: () => void }; disconnect?: () => Promise<void>; connected?: boolean };
       p?.signer?.abortPairingAttempt?.();
+      if (!p.connected && p.disconnect) {
+        p.disconnect().catch(() => {});
+      }
     } catch {
       // Ignore cleanup error
+    }
+    if (!activeWalletConnectProvider.connected) {
+      activeWalletConnectProvider = null;
+      walletConnectInitPromise = null;
     }
   }
 }
@@ -491,6 +498,17 @@ export async function connectWalletConnectSession(
   let provider: any = null;
 
   try {
+    // If a cached provider exists but is not connected, clean it up before creating a fresh connection
+    if (activeWalletConnectProvider && !activeWalletConnectProvider.connected) {
+      try {
+        activeWalletConnectProvider.disconnect?.().catch(() => {});
+      } catch {
+        // Ignore
+      }
+      activeWalletConnectProvider = null;
+      walletConnectInitPromise = null;
+    }
+
     onStatusChange?.(`Connecting to WalletConnect relay for ${targetWallet.name}...`);
     provider = await getOrCreateWalletConnectProvider(preferredChainId);
 
@@ -784,7 +802,7 @@ export async function connectWalletConnectSession(
         success: false,
         code: 'RELAY_CONNECTION_ERROR',
         error:
-          'WalletConnect relay was unable to deliver the connection proposal. The WalletConnect/Reown Project ID may be invalid, restricted, or rate-limited. You can use the Instant 1-Click Test Wallet or update the Project ID in Relay Settings.',
+          'WalletConnect relay was unable to deliver the connection proposal. The WalletConnect/Reown Project ID may be invalid, restricted, or rate-limited. You can enter your wallet address manually or update the Project ID in Relay Settings.',
       };
     }
 

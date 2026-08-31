@@ -710,12 +710,38 @@ export function WalletConnectModal({
                   )}
                 </div>
               ) : (
-                /* Connecting Spinner / Relay Initializer */
-                <div className="py-8 flex flex-col items-center justify-center text-center space-y-3 bg-[#0B1026] rounded-xl border border-[#242E5E]">
-                  <RefreshCw className="w-7 h-7 text-[#20E56B] animate-spin" />
+                /* Connecting Spinner / Relay Initializer with Instant Fallback */
+                <div className="py-6 px-4 flex flex-col items-center justify-center text-center space-y-4 bg-[#0B1026] rounded-xl border border-[#242E5E]">
+                  <div className="relative">
+                    <RefreshCw className="w-8 h-8 text-[#20E56B] animate-spin" />
+                    <span className="absolute inset-0 rounded-full bg-[#20E56B]/20 animate-ping" />
+                  </div>
                   <div>
-                    <p className="text-xs font-semibold text-white">Initializing Secure Relay Connection</p>
-                    <p className="text-[11px] text-[#A7AEC4] mt-0.5">Connecting to WalletConnect v2 network...</p>
+                    <p className="text-xs font-bold text-white">Contacting WalletConnect Relay</p>
+                    <p className="text-[11px] text-[#A7AEC4] mt-1 max-w-xs mx-auto">
+                      Preparing connection proposal for {selectedMobileWallet.name}...
+                    </p>
+                  </div>
+
+                  <div className="pt-2 w-full flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowQrFallback(true)}
+                      className="w-full py-2.5 px-3 bg-[#131A38] hover:bg-[#1f2a57] text-[#20E56B] rounded-lg text-xs font-semibold border border-[#242E5E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>Show QR Code Mode</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleCancelPairing();
+                        setShowCustomAddress(true);
+                      }}
+                      className="w-full py-2.5 px-3 bg-[#0B1026] hover:bg-[#131A38] text-[#A7AEC4] hover:text-white rounded-lg text-xs font-medium border border-[#242E5E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <span>Enter Address Manually Instead</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -728,7 +754,7 @@ export function WalletConnectModal({
                   onClick={handleCancelPairing}
                   className="py-2 px-4 rounded-xl text-xs font-medium text-[#A7AEC4] hover:text-white bg-[#0B1026] hover:bg-[#182247] border border-[#242E5E] transition-colors cursor-pointer"
                 >
-                  Cancel Connection
+                  ← Back to Wallet Options
                 </button>
               </div>
             </div>
@@ -867,44 +893,39 @@ export function WalletConnectModal({
                 </button>
               </div>
 
-              {/* Option 4: Custom Address Input */}
+              {/* Option 3: Manual Address Entry (Instant 1-Click for Merchants) */}
               <div className="pt-1">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-[#A7AEC4]">
-                    Custom Address
+                    Direct Address (Instant)
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomAddress((prev) => !prev)}
-                    className="text-[10px] text-[#4D7CFE] hover:underline cursor-pointer"
-                  >
-                    {showCustomAddress ? 'Cancel' : 'Enter Address Manually'}
-                  </button>
+                  <span className="text-[10px] text-[#20E56B] bg-[#20E56B]/10 px-2 py-0.5 rounded-full border border-[#20E56B]/20">
+                    100% Reliable
+                  </span>
                 </div>
 
-                {showCustomAddress && (
-                  <form onSubmit={handleConnectCustomAddress} className="p-3.5 bg-[#0B1026] rounded-xl border border-[#242E5E] space-y-2.5 animate-in fade-in duration-150">
-                    <p className="text-[11px] text-[#A7AEC4]">
-                      Connect any public EVM wallet address (Polygon/Ethereum/BNB):
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={customAddressInput}
-                        onChange={(e) => setCustomAddressInput(e.target.value)}
-                        placeholder="0x..."
-                        className="flex-1 px-3 py-2 bg-[#131A38] border border-[#242E5E] rounded-lg text-xs text-white placeholder-[#A7AEC4]/50 focus:outline-none focus:border-[#20E56B] font-mono"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!customAddressInput.trim()}
-                        className="px-4 py-2 bg-[#20E56B] hover:bg-[#1ac95c] text-[#0B1026] rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        Connect
-                      </button>
-                    </div>
-                  </form>
-                )}
+                <form onSubmit={handleConnectCustomAddress} className="p-3.5 bg-[#0B1026] rounded-xl border border-[#242E5E] space-y-2.5">
+                  <div className="flex items-center justify-between text-[11px] text-[#A7AEC4]">
+                    <span>Enter any EVM address (Polygon / Ethereum / BNB):</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customAddressInput}
+                      onChange={(e) => setCustomAddressInput(e.target.value)}
+                      placeholder="0x71C... or paste your Polygon address"
+                      className="flex-1 px-3 py-2 bg-[#131A38] border border-[#242E5E] rounded-lg text-xs text-white placeholder-[#A7AEC4]/50 focus:outline-none focus:border-[#20E56B] font-mono"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!customAddressInput.trim()}
+                      className="px-4 py-2 bg-[#20E56B] hover:bg-[#1ac95c] text-[#0B1026] rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1 shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Set Address</span>
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}

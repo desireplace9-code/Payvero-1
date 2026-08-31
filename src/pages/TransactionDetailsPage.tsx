@@ -6,6 +6,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { TokenBadge } from '../components/TokenBadge';
 import { AddressDisplay } from '../components/AddressDisplay';
 import { formatTokenAmount, getExplorerTxUrl } from '../config/tokens';
+import { downloadPaymentsCsv } from '../utils/exportCsv';
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -17,7 +18,8 @@ import {
   CreditCard,
   Building2,
   User,
-  Hash
+  Hash,
+  Download
 } from 'lucide-react';
 
 interface TransactionDetailsPageProps {
@@ -39,6 +41,11 @@ export function TransactionDetailsPage({ paymentId, onNavigate }: TransactionDet
       }
     }
   }, [paymentId, getPayment]);
+
+  const handleExportSingleCsv = () => {
+    if (!payment) return;
+    downloadPaymentsCsv([payment], `payvero_tx_${payment.id.slice(0, 8)}`);
+  };
 
   const handleReverify = async () => {
     if (!payment) return;
@@ -102,15 +109,28 @@ export function TransactionDetailsPage({ paymentId, onNavigate }: TransactionDet
           id="btn-back-from-details"
           type="button"
           onClick={() => onNavigate('dashboard')}
-          className="inline-flex items-center gap-2 text-xs text-[#A7AEC4] hover:text-white transition-colors"
+          className="inline-flex items-center gap-2 text-xs text-[#A7AEC4] hover:text-white transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Transactions</span>
         </button>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#A7AEC4]">Payment Status:</span>
-          <StatusBadge status={payment.status} size="md" />
+        <div className="flex items-center gap-3">
+          <button
+            id="btn-export-single-tx-csv"
+            type="button"
+            onClick={handleExportSingleCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#131A38] text-[#20E56B] hover:bg-[#18224a] hover:text-white border border-[#242E5E] hover:border-[#20E56B]/50 transition-colors cursor-pointer"
+            title="Download this transaction record as CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[#A7AEC4]">Payment Status:</span>
+            <StatusBadge status={payment.status} size="md" />
+          </div>
         </div>
       </div>
 

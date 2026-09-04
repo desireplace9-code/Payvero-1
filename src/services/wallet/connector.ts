@@ -210,9 +210,14 @@ export async function connectInjectedWallet(): Promise<WalletConnectionResult> {
 
 /**
  * Initializes and caches the singleton EthereumProvider instance.
- * Advertises Polygon PoS (137), Ethereum Mainnet (1), BNB Smart Chain (56), Arbitrum, Base, Optimism in proposal configuration.
+ * Advertises Polygon PoS (137), Ethereum Mainnet (1), BNB Smart Chain (56) in proposal configuration.
  */
 export async function getOrCreateWalletConnectProvider(preferredChainId: number = 137): Promise<any> {
+  const projectId = ENV_CONFIG.walletConnectProjectId;
+  if (!projectId || projectId.trim().length === 0) {
+    throw new Error('MISSING_PROJECT_ID');
+  }
+
   if (activeWalletConnectProvider) {
     return activeWalletConnectProvider;
   }
@@ -222,12 +227,6 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
 
   walletConnectInitPromise = (async () => {
     const { EthereumProvider } = await import('@walletconnect/ethereum-provider');
-    
-    // Official redirect URL: use the current browser web URL so mobile wallets return seamlessly upon approval
-    const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://payvero.io';
-    const appUrl = typeof window !== 'undefined'
-      ? window.location.href
-      : 'https://payvero.io';
 
     // Primary chain is Polygon PoS (137), with Ethereum (1) and BNB Smart Chain (56) in proposal configuration
     const primaryChain = preferredChainId || 137;
@@ -236,9 +235,9 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
     // in their selectable chain approval prompt.
     const allMainnetChains = [137, 1, 56];
 
+    // Initialize using official WalletConnect cloud relay and exact Reown Cloud registered metadata
     const provider = await EthereumProvider.init({
-      projectId: ENV_CONFIG.walletConnectProjectId,
-      relayUrl: 'wss://relay.walletconnect.org',
+      projectId,
       chains: [primaryChain],
       optionalChains: allMainnetChains,
       methods: [
@@ -268,11 +267,11 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
       showQrModal: false,
       metadata: {
         name: 'Payvero',
-        description: 'Multi-Chain Non-Custodial Crypto Payments & Checkout',
-        url: appOrigin,
-        icons: [`${appOrigin}/icon.png`],
+        description: 'Simple Crypto Payments',
+        url: 'https://payvero-1.vercel.app/',
+        icons: ['https://payvero-1.vercel.app/icon.png'],
         redirect: {
-          universal: appUrl,
+          universal: 'https://payvero-1.vercel.app/',
         },
       },
       rpcMap: {
@@ -298,6 +297,38 @@ export async function getOrCreateWalletConnectProvider(preferredChainId: number 
     activeWalletConnectProvider = null;
     throw err;
   }
+}
+
+/**
+ * Pre-initializes the WalletConnect provider singleton at application startup.
+ * Warmed up so wallet selection modal interactions occur with zero relay delay.
+ */
+export async function initWalletConnectOnStartup(): Promise<any> {
+  if (!isWalletConnectConfigured()) {
+    return null;
+  }
+  try {
+    return await getOrCreateWalletConnectProvider(137);
+  } catch (err) {
+    console.warn('[Payvero] WalletConnect startup pre-initialization deferred:', err);
+    return null;
+  }
+}
+
+/**
+ * Resets the cached provider when the user updates or clears the Project ID.
+ */
+export function resetWalletConnectProvider(): void {
+  abortWalletConnectPairing();
+  if (activeWalletConnectProvider) {
+    try {
+      activeWalletConnectProvider.disconnect?.().catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+  activeWalletConnectProvider = null;
+  walletConnectInitPromise = null;
 }
 
 export interface ConnectWalletConnectOptions {
@@ -498,16 +529,8 @@ export async function connectWalletConnectSession(
   let provider: any = null;
 
   try {
-    // If a cached provider exists but is not connected, clean it up before creating a fresh connection
-    if (activeWalletConnectProvider && !activeWalletConnectProvider.connected) {
-      try {
-        activeWalletConnectProvider.disconnect?.().catch(() => {});
-      } catch {
-        // Ignore
-      }
-      activeWalletConnectProvider = null;
-      walletConnectInitPromise = null;
-    }
+    // Abort any lingering pairing attempt from prior clicks without destroying the underlying relay provider
+    abortWalletConnectPairing();
 
     onStatusChange?.(`Connecting to WalletConnect relay for ${targetWallet.name}...`);
     provider = await getOrCreateWalletConnectProvider(preferredChainId);
@@ -752,6 +775,7 @@ export async function connectWalletConnectSession(
   } catch (err: unknown) {
     const errorObj = err as { code?: number; message?: string };
     const errorMsg = (errorObj.message || '').toLowerCase();
+    console.error('[Payvero] WalletConnect connection error details:', err);
 
     // Clean up any pending pairing attempt so subsequent clicks start cleanly
     try {
@@ -786,6 +810,15 @@ export async function connectWalletConnectSession(
       };
     }
 
+    if (errorMsg.includes('missing_project_id')) {
+      return {
+        success: false,
+        code: 'MISSING_PROJECT_ID',
+        error:
+          'WalletConnect requires VITE_WALLETCONNECT_PROJECT_ID in your environment variables. Please configure it in your Vercel Environment Variables and redeploy, or enter your Project ID in Relay Settings.',
+      };
+    }
+
     if (
       errorMsg.includes('socket') ||
       errorMsg.includes('relay') ||
@@ -802,7 +835,7 @@ export async function connectWalletConnectSession(
         success: false,
         code: 'RELAY_CONNECTION_ERROR',
         error:
-          'WalletConnect relay was unable to deliver the connection proposal. The WalletConnect/Reown Project ID may be invalid, restricted, or rate-limited. You can enter your wallet address manually or update the Project ID in Relay Settings.',
+          'WalletConnect relay was unable to deliver the connection proposal. Please ensure VITE_WALLETCONNECT_PROJECT_ID is set in Vercel Environment Variables and redeployed, and that payvero-1.vercel.app is configured in Reown Cloud (cloud.reown.com) allowed domains.',
       };
     }
 

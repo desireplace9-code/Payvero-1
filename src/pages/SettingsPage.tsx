@@ -27,6 +27,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { ENV_CONFIG } from '../config/env';
+import { resetWalletConnectProvider } from '../services/wallet/connector';
 
 interface SettingsPageProps {
   onNavigate: (view: AppView) => void;
@@ -137,6 +138,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
 
     // Save WalletConnect / Reown Project ID
     ENV_CONFIG.setWalletConnectProjectId(wcProjectId.trim());
+    resetWalletConnectProvider();
 
     const res = updateMerchant({
       name: name.trim(),
@@ -167,6 +169,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
     setBitcoinWalletAddress('');
     setWcProjectId('');
     ENV_CONFIG.setWalletConnectProjectId('');
+    resetWalletConnectProvider();
     setSupportedTokens(['POL', 'USDT', 'VERSE']);
     setDefaultToken('POL');
     setEmail('finance@acmedigital.io');

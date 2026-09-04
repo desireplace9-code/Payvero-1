@@ -36,7 +36,7 @@ import {
   isMobileDevice
 } from '../services/wallet/mobileWallets';
 import { ConnectOptions } from '../hooks/useCustomerWallet';
-import { abortWalletConnectPairing, getActiveWalletSession, isWalletConnectConfigured as checkWcConfigured } from '../services/wallet/connector';
+import { abortWalletConnectPairing, getActiveWalletSession, isWalletConnectConfigured as checkWcConfigured, resetWalletConnectProvider } from '../services/wallet/connector';
 import { ENV_CONFIG } from '../config/env';
 
 interface WalletConnectModalProps {
@@ -155,6 +155,7 @@ export function WalletConnectModal({
     if (!cleanId) return;
     
     ENV_CONFIG.setWalletConnectProjectId(cleanId);
+    resetWalletConnectProvider();
     setProjectIdSavedMsg(true);
     setTimeout(() => {
       setProjectIdSavedMsg(false);

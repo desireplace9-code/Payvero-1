@@ -10,6 +10,7 @@ import { TransactionDetailsPage } from './pages/TransactionDetailsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { MerchantWalletProvider, useMerchantWallet } from './hooks/useMerchantWallet';
 import { usePayments } from './hooks/usePayments';
+import { initWalletConnectOnStartup } from './services/wallet/connector';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<AppView>('landing');
@@ -71,6 +72,8 @@ function AppContent() {
   useEffect(() => {
     parseHash();
     window.addEventListener('hashchange', parseHash);
+    // Pre-initialize WalletConnect singleton provider once on application startup
+    initWalletConnectOnStartup();
     return () => window.removeEventListener('hashchange', parseHash);
   }, [parseHash]);
 
